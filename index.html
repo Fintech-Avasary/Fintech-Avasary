@@ -11,6 +11,8 @@
       --ink: #23302b;
       --muted: #5c6b64;
       --accent: #1f6f54;
+      --mayor: #2f3e8f;
+      --error: #b3261e;
       --line: #d8d3c7;
     }
     * { box-sizing: border-box; }
@@ -28,15 +30,19 @@
       padding: 24px;
       background: var(--card);
       border: 1px solid var(--line);
+      border-top: 6px solid var(--line);
       border-radius: 12px;
     }
+    main[data-portal="mayor"] { border-top-color: var(--mayor); }
+    main[data-portal="resident"] { border-top-color: var(--accent); }
     h1 { margin: 0; font-size: 1.5rem; }
     h2 { margin: 24px 0 8px; font-size: 1rem; }
     p { margin: 4px 0; }
-    ul { margin: 0; padding-left: 20px; }
+    ul, ol { margin: 0; padding-left: 20px; }
     fieldset { margin: 24px 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; }
     legend { padding: 0 4px; font-weight: 600; }
     label { display: block; padding: 6px 0; cursor: pointer; }
+    input[type="text"] { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid var(--muted); border-radius: 8px; font: inherit; }
     button {
       width: 100%;
       padding: 12px;
@@ -48,16 +54,49 @@
       font-weight: 600;
       cursor: pointer;
     }
+    button:disabled { opacity: 0.5; cursor: default; }
+    button.mayor { background: var(--mayor); }
+    button.secondary { margin-top: 12px; background: transparent; color: var(--ink); border: 1px solid var(--muted); }
+    #answers button { margin-top: 8px; }
+    #portal-choice button { margin-top: 16px; }
+    #portal-choice button span { display: block; font-weight: 400; }
+    #start-job, #continue, #bank-all, #buy-upgrade, #pay-emergency { margin-top: 12px; }
+    canvas { display: block; width: 100%; height: auto; margin: 8px 0; border: 1px solid var(--line); }
+    .job-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 8px; touch-action: manipulation; }
+    .job-controls [data-move="up"] { grid-column: 2; }
+    .job-controls [data-move="left"] { grid-column: 1; }
+    .job-controls [data-move="down"] { grid-column: 2; }
+    .job-checklist { margin-top: 8px; padding-left: 0; list-style: none; }
+    .job-current { font-weight: 600; }
     .muted { color: var(--muted); }
+    .error { color: var(--error); }
+    .portal-badge { margin-bottom: 8px; font-size: 0.875rem; font-weight: 600; }
+    main[data-portal="mayor"] .portal-badge { color: var(--mayor); }
+    main[data-portal="resident"] .portal-badge { color: var(--accent); }
   </style>
 </head>
 <body>
   <main>
-    <section id="waiting-room">
-      <h1>Maple Street Block</h1>
-      <p class="muted">Waiting room: the Workday starts when the Mayor is ready.</p>
+    <p id="portal-badge" class="portal-badge" hidden></p>
 
-      <h2>Residents here</h2>
+    <section id="portal-choice">
+      <h1>Avasary</h1>
+      <p class="muted">Who is using this screen?</p>
+      <button type="button" id="choose-mayor" class="mayor">
+        Mayor portal
+        <span>For educators: run the Block and start the Workday</span>
+      </button>
+      <button type="button" id="choose-resident">
+        Resident portal
+        <span>For students: join your Block and go to work</span>
+      </button>
+    </section>
+
+    <section id="mayor-portal" hidden>
+      <h1>Maple Street Block</h1>
+      <p>Block code: <strong id="block-code-display"></strong></p>
+
+      <h2>Residents in the waiting room</h2>
       <ul>
         <li>Resident A</li>
         <li>Resident B</li>
@@ -66,32 +105,373 @@
 
       <form id="start-form">
         <fieldset>
-          <legend>Mayor: emergencies this Workday</legend>
+          <legend>Emergencies this Workday</legend>
           <label><input type="radio" name="emergency" value="off"> Off (never happens)</label>
           <label><input type="radio" name="emergency" value="sometimes" checked> Sometimes (50% chance)</label>
           <label><input type="radio" name="emergency" value="always"> Always</label>
         </fieldset>
-        <button type="submit">Start Workday</button>
+        <button type="submit" class="mayor">Start Workday</button>
       </form>
+      <button type="button" class="secondary" data-go-to-choice>Back to portal choice</button>
+    </section>
+
+    <section id="resident-join" hidden>
+      <h1>Join your Block</h1>
+      <p class="muted">Enter the code from your Mayor. You only do this once.</p>
+      <form id="join-form">
+        <label for="block-code">Block code</label>
+        <input type="text" id="block-code" autocomplete="off" required>
+        <p id="join-error" class="error" role="alert"></p>
+        <button type="submit">Join Block</button>
+      </form>
+      <button type="button" class="secondary" data-go-to-choice>Back to portal choice</button>
+    </section>
+
+    <section id="resident-waiting" hidden>
+      <h1>Maple Street Block</h1>
+      <p class="muted">Waiting room: the Workday starts when the Mayor is ready.</p>
+
+      <h2>Residents here</h2>
+      <ul>
+        <li>You</li>
+        <li>Resident A</li>
+        <li>Resident B</li>
+        <li>Resident C</li>
+      </ul>
+      <button type="button" class="secondary" id="demo-to-mayor">Demo only: switch to Mayor portal</button>
     </section>
 
     <section id="workday" hidden>
-      <h1>Workday started</h1>
-      <p>Emergency setting: <strong id="emergency-setting"></strong></p>
-      <p class="muted">Round 1 questions come next.</p>
+      <h1 id="workday-title"></h1>
+      <p>Wallet: <strong>$<span id="wallet">0</span></strong> &middot; Bank: <strong>$<span id="bank">0</span></strong></p>
+      <p id="time-line">Work time earned: <strong id="time-earned">0</strong> seconds</p>
+
+      <div id="question-area">
+        <h2 id="question-count"></h2>
+        <p id="question-text"></p>
+        <div id="answers"></div>
+      </div>
+
+      <div aria-live="polite">
+        <p id="feedback"></p>
+        <p id="countdown" class="muted"></p>
+        <div id="results" hidden>
+          <h2>Questions finished</h2>
+          <p id="results-text"></p>
+          <button type="button" id="start-job" hidden></button>
+        </div>
+        <div id="payout" hidden>
+          <h2>Payday</h2>
+          <p id="payout-text"></p>
+          <div id="money-choice" hidden>
+            <h2>What will you do with your wallet money?</h2>
+            <button type="button" id="bank-all"></button>
+            <button type="button" id="buy-upgrade"></button>
+          </div>
+          <button type="button" id="continue" hidden></button>
+        </div>
+        <div id="emergency" hidden>
+          <p id="emergency-text"></p>
+          <fieldset id="pay-order" hidden>
+            <legend>Pay from</legend>
+            <label><input type="radio" name="pay-order" value="wallet" checked> Wallet first, then bank</label>
+            <label><input type="radio" name="pay-order" value="bank"> Bank first, then wallet</label>
+          </fieldset>
+          <button type="button" id="pay-emergency"></button>
+        </div>
+        <div id="summary" hidden>
+          <ul id="summary-list"></ul>
+          <h2>Talk about it</h2>
+          <ul>
+            <li>Was your choice after Round 1 the right one? What would you change?</li>
+            <li>How does having savings change what an emergency feels like?</li>
+            <li>Why might a need like food and shelter come before a want?</li>
+          </ul>
+        </div>
+      </div>
+
+      <div id="job-area"></div>
     </section>
   </main>
 
+  <script src="jobs/restocker.js"></script>
   <script>
-    const game = { emergencySetting: null };
+    const BLOCK_CODE = 'MAPLE1';
+    const SECONDS_PER_CORRECT = 15;
+    const QUESTION_GAP_SECONDS = 5; // §7.4: tunable friction timer
+
+    const UPGRADE_COST = 60;
+    const UPGRADE_MULTIPLIER = 1.2; // §7.3
+    const EMERGENCY_COST = 80;
+    const EMERGENCY_SOMETIMES_CHANCE = 0.5;
+
+    // One list per round (§15).
+    const QUESTIONS = [
+      [
+        { text: 'Which of these is a need?', answers: ['A concert ticket', 'Rent', 'A new phone case'], correct: 1 },
+        { text: 'What is a budget?', answers: ['A plan for how you will use your money', 'A type of bank account', 'A loan from a store'], correct: 0 },
+        { text: 'What is an emergency fund for?', answers: ['Buying things on sale', 'Paying for vacations', 'Covering surprise costs'], correct: 2 }
+      ],
+      [
+        { text: 'Which of these is a want?', answers: ['Groceries', 'Designer sneakers', 'The electric bill'], correct: 1 },
+        { text: 'What does a savings account pay you?', answers: ['Interest', 'Rent', 'A bonus for every purchase'], correct: 0 },
+        { text: 'What is the best time to start saving?', answers: ['After an emergency', 'Only after buying what you want', 'Before you need the money'], correct: 2 }
+      ]
+    ];
+
+    const game = {
+      emergencySetting: null, joined: false, job: Restocker,
+      round: 0, questionIndex: 0, workSeconds: 0, foodShelterMultiplier: 1,
+      wallet: 0, bank: 0, totalEarned: 0, choiceSummary: 'You had no money to bank or spend after Round 1.', emergencySummary: 'No emergency happened this Workday.'
+    };
+    const el = (id) => document.getElementById(id);
+
+    // Team decision 2026-10-30: the Mayor picks off, sometimes or always (overrides §12).
+    function emergencyHappens(setting, roll) {
+      return setting === 'always' || (setting === 'sometimes' && roll < EMERGENCY_SOMETIMES_CHANCE);
+    }
+
+    // Team decision 2026-10-30: wallet then bank, or bank then wallet by choice (overrides §11.3, §12).
+    // Credit is off in the demo, so whatever can't be paid is waived and balances never go negative.
+    function payCharge(wallet, bank, charge, bankFirst) {
+      const fromFirst = Math.min(charge, bankFirst ? bank : wallet);
+      const fromSecond = Math.min(charge - fromFirst, bankFirst ? wallet : bank);
+      return {
+        fromWallet: bankFirst ? fromSecond : fromFirst,
+        fromBank: bankFirst ? fromFirst : fromSecond,
+        waived: charge - fromFirst - fromSecond
+      };
+    }
+
+    const sameCharge = (actual, fromWallet, fromBank, waived) =>
+      actual.fromWallet === fromWallet && actual.fromBank === fromBank && actual.waived === waived;
+    console.assert(sameCharge(payCharge(100, 100, 80, false), 80, 0, 0), 'wallet pays first by default');
+    console.assert(sameCharge(payCharge(100, 100, 80, true), 0, 80, 0), 'bank pays first by choice');
+    console.assert(sameCharge(payCharge(30, 20, 80, false), 30, 20, 30), 'overflow moves to the other balance, the rest is waived');
+    console.assert(sameCharge(payCharge(0, 0, 80, true), 0, 0, 80), 'nothing to pay with means fully waived');
+    console.assert(emergencyHappens('always', 0.99) && !emergencyHappens('off', 0) && emergencyHappens('sometimes', 0.49) && !emergencyHappens('sometimes', 0.5), 'Mayor emergency setting');
+
+    const SCREENS = ['portal-choice', 'mayor-portal', 'resident-join', 'resident-waiting', 'workday'];
+    const PORTAL_LABELS = { mayor: 'Mayor portal (educator)', resident: 'Resident portal (student)' };
+
+    function showScreen(screen, portal) {
+      SCREENS.forEach((id) => { el(id).hidden = id !== screen; });
+      document.querySelector('main').dataset.portal = portal || '';
+      el('portal-badge').hidden = !portal;
+      el('portal-badge').textContent = PORTAL_LABELS[portal] || '';
+    }
+
+    function showResidentPortal() {
+      // §4: a Resident types the Block code once, then goes straight to the waiting room.
+      showScreen(game.joined ? 'resident-waiting' : 'resident-join', 'resident');
+    }
+
+    // §7.3: Food & Shelter multiplies the seconds each correct answer pays on a time-based job.
+    const secondsForCorrectAnswer = (multiplier) => SECONDS_PER_CORRECT * multiplier;
+    console.assert(secondsForCorrectAnswer(1) === 15 && secondsForCorrectAnswer(1.2) === 18, 'seconds per correct answer');
+
+    const roundQuestions = () => QUESTIONS[game.round - 1];
+
+    function showMoney() {
+      el('wallet').textContent = game.wallet;
+      el('bank').textContent = game.bank;
+    }
+
+    function startRound() {
+      game.round += 1;
+      game.questionIndex = 0;
+      game.workSeconds = 0;
+      el('workday-title').textContent = `Round ${game.round}`;
+      el('time-earned').textContent = 0;
+      el('payout').hidden = true;
+      el('time-line').hidden = false;
+      el('question-area').hidden = false;
+      showQuestion();
+    }
+
+    function showQuestion() {
+      const question = roundQuestions()[game.questionIndex];
+      el('feedback').textContent = '';
+      el('countdown').textContent = '';
+      el('question-count').textContent = `Question ${game.questionIndex + 1} of ${roundQuestions().length}`;
+      el('question-text').textContent = question.text;
+      el('answers').replaceChildren(...question.answers.map((answer, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = answer;
+        button.addEventListener('click', () => answerQuestion(index));
+        return button;
+      }));
+    }
+
+    // §7.1: correct answers are the only source of energy, which time-based jobs take as seconds.
+    function answerQuestion(index) {
+      const question = roundQuestions()[game.questionIndex];
+      el('answers').querySelectorAll('button').forEach((button) => { button.disabled = true; });
+
+      if (index === question.correct) {
+        const earned = secondsForCorrectAnswer(game.foodShelterMultiplier);
+        game.workSeconds += earned;
+        el('time-earned').textContent = game.workSeconds;
+        el('feedback').textContent = `Correct! +${earned} seconds of work time.`;
+      } else {
+        el('feedback').textContent = `Not quite. The answer is: ${question.answers[question.correct]}.`;
+      }
+
+      game.questionIndex += 1;
+      if (game.questionIndex === roundQuestions().length) showResults();
+      else startQuestionGap();
+    }
+
+    function startQuestionGap() {
+      let secondsLeft = QUESTION_GAP_SECONDS;
+      el('countdown').textContent = `Next question in ${secondsLeft}...`;
+      const timer = setInterval(() => {
+        secondsLeft -= 1;
+        el('countdown').textContent = `Next question in ${secondsLeft}...`;
+        if (secondsLeft === 0) {
+          clearInterval(timer);
+          showQuestion();
+        }
+      }, 1000);
+    }
+
+    function showResults() {
+      el('question-area').hidden = true;
+      el('results').hidden = false;
+      // §7.1: energy is the only way into a job, so 0 correct means no job this round.
+      const canWork = game.workSeconds > 0;
+      el('start-job').textContent = canWork ? `Go to work: ${game.job.name}` : 'Continue';
+      el('results-text').textContent = canWork
+        ? `You earned ${game.workSeconds} seconds of work time.`
+        : 'You earned no work time, so you can\'t work a job this round.';
+    }
+
+    function startJob() {
+      const seconds = game.workSeconds;
+      game.workSeconds = 0;
+      el('time-line').hidden = true;
+      el('feedback').textContent = '';
+      el('results').hidden = true;
+      if (seconds <= 0) { // §7.1: the energy gate
+        finishJob({ earnings: 0, summary: 'You didn\'t work this round.' });
+        return;
+      }
+      game.job.start(el('job-area'), seconds, finishJob);
+    }
+
+    // §7.2: every job pays its performance-based earnings into the same wallet.
+    function finishJob({ earnings, summary }) {
+      game.wallet += earnings;
+      game.totalEarned += earnings;
+      showMoney();
+      el('payout-text').textContent = `${summary} You earned $${earnings}.`;
+      el('payout').hidden = false;
+
+      // §15: the bank-or-spend choice sits between the rounds, so an upgrade pays off before the emergency.
+      const lastRound = game.round === QUESTIONS.length;
+      const canChoose = !lastRound && game.wallet > 0;
+      el('money-choice').hidden = !canChoose;
+      el('continue').hidden = canChoose;
+      el('continue').textContent = lastRound ? 'Finish the Workday' : `Start Round ${game.round + 1}`;
+      if (canChoose) {
+        el('bank-all').textContent = `Bank all $${game.wallet}`;
+        el('buy-upgrade').disabled = game.wallet < UPGRADE_COST;
+        el('buy-upgrade').textContent = game.wallet < UPGRADE_COST
+          ? `Food & Shelter costs $${UPGRADE_COST}: not enough money`
+          : `Buy Food & Shelter for $${UPGRADE_COST}: ${UPGRADE_MULTIPLIER}x work time per correct answer`;
+      }
+    }
+
+    // §11.1: deposits have no limits.
+    function bankAll() {
+      game.choiceSummary = `After Round 1 you banked $${game.wallet}.`;
+      game.bank += game.wallet;
+      game.wallet = 0;
+      showMoney();
+      startRound();
+    }
+
+    function buyUpgrade() {
+      game.wallet -= UPGRADE_COST;
+      game.foodShelterMultiplier = UPGRADE_MULTIPLIER;
+      game.choiceSummary = `After Round 1 you bought Food & Shelter for $${UPGRADE_COST}.`;
+      showMoney();
+      startRound();
+    }
+
+    function continueWorkday() {
+      if (game.round < QUESTIONS.length) startRound();
+      else if (emergencyHappens(game.emergencySetting, Math.random())) showEmergency();
+      else showSummary();
+    }
+
+    function showEmergency() {
+      el('workday-title').textContent = 'Emergency!';
+      el('payout').hidden = true;
+      el('emergency-text').textContent = `Your bike broke down and you need it for work. The repair costs $${EMERGENCY_COST}, and you can't skip it.`;
+      el('pay-order').hidden = !(game.wallet > 0 && game.bank > 0); // only a choice when both can pay
+      el('pay-emergency').textContent = game.wallet + game.bank > 0 ? 'Pay the bill' : 'Continue';
+      el('emergency').hidden = false;
+    }
+
+    function payEmergency() {
+      const bankFirst = document.querySelector('input[name="pay-order"]:checked').value === 'bank';
+      const { fromWallet, fromBank, waived } = payCharge(game.wallet, game.bank, EMERGENCY_COST, bankFirst);
+      game.wallet -= fromWallet;
+      game.bank -= fromBank;
+      game.emergencySummary = `The $${EMERGENCY_COST} bike repair took $${fromWallet} from your wallet and $${fromBank} from your bank.`;
+      if (waived > 0) game.emergencySummary += ` The other $${waived} was waived because you had no money left.`;
+      showMoney();
+      el('emergency').hidden = true;
+      showSummary();
+    }
+
+    function showSummary() {
+      el('workday-title').textContent = 'Workday summary';
+      el('payout').hidden = true;
+      el('summary-list').replaceChildren(...[
+        `You earned $${game.totalEarned} from work.`,
+        game.choiceSummary,
+        game.emergencySummary,
+        `You finished with $${game.wallet} in your wallet and $${game.bank} in your bank.`
+      ].map((line) => {
+        const row = document.createElement('li');
+        row.textContent = line;
+        return row;
+      }));
+      el('summary').hidden = false;
+    }
+
+    el('block-code-display').textContent = BLOCK_CODE;
+    el('choose-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
+    el('choose-resident').addEventListener('click', showResidentPortal);
+    el('demo-to-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
+    el('start-job').addEventListener('click', startJob);
+    el('bank-all').addEventListener('click', bankAll);
+    el('buy-upgrade').addEventListener('click', buyUpgrade);
+    el('continue').addEventListener('click', continueWorkday);
+    el('pay-emergency').addEventListener('click', payEmergency);
+    document.querySelectorAll('[data-go-to-choice]').forEach((button) => {
+      button.addEventListener('click', () => showScreen('portal-choice'));
+    });
+
+    el('join-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (el('block-code').value.trim().toUpperCase() === BLOCK_CODE) {
+        game.joined = true;
+        showResidentPortal();
+      } else {
+        el('join-error').textContent = 'That code doesn\'t match a Block. Check with your Mayor.';
+      }
+    });
 
     // §4: the Mayor starts the Workday from the waiting room. §12: emergency setting is Mayor-controlled.
-    document.getElementById('start-form').addEventListener('submit', (event) => {
+    el('start-form').addEventListener('submit', (event) => {
       event.preventDefault();
       game.emergencySetting = new FormData(event.target).get('emergency');
-      document.getElementById('emergency-setting').textContent = game.emergencySetting;
-      document.getElementById('waiting-room').hidden = true;
-      document.getElementById('workday').hidden = false;
+      showScreen('workday', 'resident');
+      startRound();
     });
   </script>
 </body>

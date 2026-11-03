@@ -29,7 +29,9 @@ Login, educator dashboard, persistence, city landscape, multiple jobs may be stu
 
 The demo runs 2 rounds of questions and job, with the bank-or-buy choice between them, so an upgrade pays off before the emergency.
 
-Jobs are 2D games. Planned: Grocery Dash (demo job: 10 seconds to memorize the list, then run the aisles on a job budget, using shopping time earned from answers) and Pipe Fixer (buy and rotate pipes on a budget to fix the map). The third job is undecided.
+Jobs are 2D games. Restocker is built: 10 seconds to memorize the list, then find the shelves from memory, using work time earned from answers. Planned: Plumber (rotate pipes to connect outpipe to inpipe) and Pharmacist (combine vials using a recipe sheet to make a goal vial). Details are in `docs/claude_code_game_request.md`. *(Replaces Grocery Dash and Pipe Fixer; overrides §8 until the spec is updated.)*
+
+Mayor and Resident are separate portals. There's no backend, so both run in one browser. The Mayor sets which jobs are available and students choose among them.
 
 ### Working rules
 
@@ -49,8 +51,10 @@ Plain HTML, CSS and JavaScript. There is no build step and nothing to install.
 
 | Path | Purpose |
 | --- | --- |
-| `index.html` | Entry point of the game |
+| `index.html` | Entry point of the game: portals, game flow and money |
+| `jobs/` | One plain script per job, with `start(container, seconds, onDone)`. ES modules fail when `index.html` is opened by double-click, so don't use them. |
 | `docs/avasary_design_spec.md` | Design spec, the source of truth for all mechanics |
+| `docs/claude_code_game_request.md` | Request for the portals and the three-job lineup |
 | `logs/` | Session logs, one file per work session (see `logs/README.md`) |
 | `AGENTS.md` | This file: instructions for agents |
 | `CLAUDE.md` | Imports this file for Claude Code. Don't add anything else to it. |
