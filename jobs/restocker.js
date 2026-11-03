@@ -1,6 +1,6 @@
-// Restocker job (§8): memorize the goods list, then find each shelf from memory in a top-down store.
-const RESTOCK_MEMORIZE_SECONDS = 10;
-const RESTOCK_ITEM_COUNT = 4;
+// Restocker job (§8): the grocery list shows each item's aisle and shelf; walk the top-down store and stock them.
+// Team decision 2026-11-03: the list stays visible, replacing the memorize-first version.
+const RESTOCK_ITEM_COUNT = 4; // per batch; new batches keep coming until work time runs out, so pay scales with time (§7.3)
 const RESTOCK_PAY_PER_ITEM = 20; // §7.2: pay scales with correct restocks only
 const RESTOCK_GOODS = ['Milk', 'Bread', 'Apples', 'Rice', 'Soap', 'Beans'];
 
@@ -52,43 +52,27 @@ const Restocker = {
 
   // Shared job contract: play for the seconds earned, then report through onDone({ earnings, summary }).
   start(container, seconds, onDone) {
-    const items = makeRestockList();
-
-    function showMemorize() {
-      const title = document.createElement('h2');
-      title.textContent = 'Restocker: memorize the list';
-      const list = document.createElement('ol');
-      list.append(...items.map((item) => {
-        const row = document.createElement('li');
-        row.textContent = `${item.name}: ${shelfName(item)}`;
-        return row;
-      }));
-      const countdown = document.createElement('p');
-      countdown.className = 'muted';
-      container.replaceChildren(title, list, countdown);
-
-      let secondsLeft = RESTOCK_MEMORIZE_SECONDS;
-      countdown.textContent = `Store opens in ${secondsLeft}...`;
-      const timer = setInterval(() => {
-        secondsLeft -= 1;
-        countdown.textContent = `Store opens in ${secondsLeft}...`;
-        if (secondsLeft === 0) {
-          clearInterval(timer);
-          showStore();
-        }
-      }, 1000);
-    }
+    const player = { ...STORE_START };
+    let secondsLeft = Math.ceil(seconds); // Food & Shelter can make earned time fractional
+    let totalRestocked = 0;
+    let items;
 
     function showStore() {
-      const player = { ...STORE_START };
       let restocked = 0;
-      let secondsLeft = Math.ceil(seconds); // Food & Shelter can make earned time fractional
 
       container.innerHTML = `
-        <h2>Restock from memory</h2>
-        <p>Time left: <strong data-role="time"></strong> seconds</p>
-        <canvas width="${STORE_COLS * STORE_TILE}" height="${STORE_ROWS * STORE_TILE}"
-          role="img" aria-label="Top-down store with three aisles of shelves"></canvas>
+        <h2>Restocker: stock the shelves</h2>
+        <p>Time left: <strong data-role="time"></strong> seconds &middot; Items stocked: <strong data-role="total">0</strong></p>
+        <div class="restock-layout">
+          <div class="restock-list">
+            <h3>Grocery list</h3>
+            <ul class="job-checklist" data-role="checklist"></ul>
+          </div>
+          <div class="restock-store">
+            <canvas width="${STORE_COLS * STORE_TILE}" height="${STORE_ROWS * STORE_TILE}"
+              role="img" aria-label="Top-down store with three aisles of shelves"></canvas>
+          </div>
+        </div>
         <p data-role="message" aria-live="polite">Walk next to a shelf, then press Stock.</p>
         <div class="job-controls">
           <button type="button" data-move="up" aria-label="Move up">&uarr;</button>
@@ -97,8 +81,7 @@ const Restocker = {
           <button type="button" data-move="right" aria-label="Move right">&rarr;</button>
           <button type="button" data-move="down" aria-label="Move down">&darr;</button>
         </div>
-        <p class="muted">Keyboard: arrow keys or WASD to move, E to stock.</p>
-        <ul class="job-checklist" data-role="checklist"></ul>`;
+        <p class="muted">Keyboard: arrow keys or WASD to move, E to stock.</p>`;
 
       const part = (role) => container.querySelector(`[data-role="${role}"]`);
       const context = container.querySelector('canvas').getContext('2d');
@@ -140,13 +123,13 @@ const Restocker = {
         part('checklist').replaceChildren(...items.map((item, i) => {
           const row = document.createElement('li');
           if (i < restocked) {
-            row.textContent = `✓ ${item.name} (done)`;
+            row.textContent = `✓ ${item.name}: ${shelfName(item)}`;
             row.className = 'muted';
           } else if (i === restocked) {
-            row.textContent = `→ ${item.name} (stock this now)`;
+            row.textContent = `→ ${item.name}: ${shelfName(item)}`;
             row.className = 'job-current';
           } else {
-            row.textContent = item.name;
+            row.textContent = `${item.name}: ${shelfName(item)}`;
           }
           return row;
         }));
@@ -168,9 +151,14 @@ const Restocker = {
         } else if (spot.aisle === item.aisle && spot.shelf === item.shelf) {
           restocked += 1;
           part('message').textContent = `${item.name} stocked!`;
-          showChecklist();
-          draw();
-          if (restocked === items.length) finish();
+          part('total').textContent = totalRestocked + restocked;
+          if (restocked === items.length) {
+            part('message').textContent = `${item.name} stocked! List done, here's a new delivery.`;
+            nextBatch();
+          } else {
+            showChecklist();
+            draw();
+          }
         } else {
           // A wrong shelf costs only the time spent walking to it.
           part('message').textContent = `Wrong shelf for ${item.name}: this is ${shelfName(spot)}.`;
@@ -207,21 +195,31 @@ const Restocker = {
         if (secondsLeft <= 0) finish();
       }, 1000);
 
+      function nextBatch() {
+        totalRestocked += restocked;
+        items = makeRestockList();
+        restocked = 0;
+        showChecklist();
+        draw();
+      }
+
       function finish() {
         clearInterval(timer);
         document.removeEventListener('keydown', onKeyDown);
+        totalRestocked += restocked;
         container.replaceChildren();
         onDone({
-          earnings: restocked * RESTOCK_PAY_PER_ITEM,
-          summary: `You restocked ${restocked} of ${items.length} items.`
+          earnings: totalRestocked * RESTOCK_PAY_PER_ITEM,
+          summary: `You restocked ${totalRestocked} items.`
         });
       }
 
       part('time').textContent = secondsLeft;
+      items = makeRestockList();
       showChecklist();
       draw();
     }
 
-    showMemorize();
+    showStore();
   }
 };

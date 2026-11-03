@@ -60,16 +60,40 @@
     #answers button { margin-top: 8px; }
     #portal-choice button { margin-top: 16px; }
     #portal-choice button span { display: block; font-weight: 400; }
-    #start-job, #continue, #bank-all, #buy-upgrade, #pay-emergency { margin-top: 12px; }
+    #job-choice button, #continue, #bank-all, #buy-upgrade, #pay-emergency { margin-top: 12px; }
     canvas { display: block; width: 100%; height: auto; margin: 8px 0; border: 1px solid var(--line); }
     .job-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 8px; touch-action: manipulation; }
     .job-controls [data-move="up"] { grid-column: 2; }
     .job-controls [data-move="left"] { grid-column: 1; }
     .job-controls [data-move="down"] { grid-column: 2; }
     .job-checklist { margin-top: 8px; padding-left: 0; list-style: none; }
+    main:has(.restock-layout) { max-width: 760px; } /* room for the list beside the store */
+    .restock-layout { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+    .restock-list { flex: 1 1 170px; }
+    .restock-list h3 { margin: 8px 0 0; font-size: 0.9rem; }
+    .restock-store { flex: 3 1 340px; min-width: 0; }
     .job-current { font-weight: 600; }
+    .pipe-grid { display: grid; gap: 4px; margin: 12px 0; align-items: center; }
+    .pipe-grid button { padding: 0; aspect-ratio: 1; background: #e9e4d8; border: 1px solid var(--line); border-radius: 4px; touch-action: manipulation; }
+    .pipe-grid button svg { display: block; width: 100%; height: 100%; }
+    .vial-goal { font-weight: 600; }
+    .vial-sheet { margin: 12px 0; padding: 8px 12px; background: #fbf8f1; border: 1px dashed var(--muted); border-radius: 8px; }
+    .vial-sheet h3, #job-area h3 { margin: 8px 0 4px; font-size: 0.9rem; }
+    .vial-sheet ul { padding-left: 0; list-style: none; }
+    .vial-sheet li { padding: 2px 0; }
+    .vial { display: inline-block; min-width: 1.8em; padding: 0 6px; border-radius: 6px 6px 12px 12px; color: #fff; font-weight: 700; text-align: center; }
+    .vial-shelf { display: flex; flex-wrap: wrap; gap: 8px; }
+    .vial-shelf button.vial { width: 3rem; height: 3.5rem; padding: 0; font-size: 1.1rem; touch-action: manipulation; }
+    .vial-shelf button[aria-pressed="true"] { outline: 4px solid #d9480f; outline-offset: 2px; }
+    .pipe-end { font-size: 0.75rem; font-weight: 600; text-align: center; color: #1c6fd1; }
     .muted { color: var(--muted); }
+    .money-table { width: 100%; margin: 12px 0; border-collapse: collapse; }
+    .money-table td { padding: 6px 4px; border-bottom: 1px solid var(--line); }
+    .money-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+    .money-table tr.total td { font-weight: 700; border-top: 2px solid var(--ink); }
     .error { color: var(--error); }
+    .answer-right { color: var(--accent); }
+    .answer-wrong { color: var(--error); }
     .portal-badge { margin-bottom: 8px; font-size: 0.875rem; font-weight: 600; }
     main[data-portal="mayor"] .portal-badge { color: var(--mayor); }
     main[data-portal="resident"] .portal-badge { color: var(--accent); }
@@ -104,6 +128,13 @@
       </ul>
 
       <form id="start-form">
+        <fieldset>
+          <legend>Jobs open this Workday</legend>
+          <label><input type="checkbox" name="jobs" value="restocker" checked> Restocker (find the shelves)</label>
+          <label><input type="checkbox" name="jobs" value="plumber" checked> Plumber (pipe puzzle)</label>
+          <label><input type="checkbox" name="jobs" value="pharmacist" checked> Pharmacist (vial recipes)</label>
+          <p id="jobs-error" class="error" role="alert"></p>
+        </fieldset>
         <fieldset>
           <legend>Emergencies this Workday</legend>
           <label><input type="radio" name="emergency" value="off"> Off (never happens)</label>
@@ -158,7 +189,7 @@
         <div id="results" hidden>
           <h2>Questions finished</h2>
           <p id="results-text"></p>
-          <button type="button" id="start-job" hidden></button>
+          <div id="job-choice"></div>
         </div>
         <div id="payout" hidden>
           <h2>Payday</h2>
@@ -180,13 +211,11 @@
           <button type="button" id="pay-emergency"></button>
         </div>
         <div id="summary" hidden>
+          <table class="money-table">
+            <caption class="muted">Your money this Workday</caption>
+            <tbody id="money-table"></tbody>
+          </table>
           <ul id="summary-list"></ul>
-          <h2>Talk about it</h2>
-          <ul>
-            <li>Was your choice after Round 1 the right one? What would you change?</li>
-            <li>How does having savings change what an emergency feels like?</li>
-            <li>Why might a need like food and shelter come before a want?</li>
-          </ul>
         </div>
       </div>
 
@@ -195,34 +224,67 @@
   </main>
 
   <script src="jobs/restocker.js"></script>
+  <script src="jobs/plumber.js"></script>
+  <script src="jobs/pharmacist.js"></script>
   <script>
     const BLOCK_CODE = 'MAPLE1';
     const SECONDS_PER_CORRECT = 15;
-    const QUESTION_GAP_SECONDS = 5; // §7.4: tunable friction timer
+    const QUESTION_GAP_SECONDS = 0; // §7.4 suggests ~5s; team decision 2026-11-03: no wait for now
+    const JOB_SWAP_SECONDS = 15; // §7.4: travel time when switching to a different job than last round
+    const JOBS = { restocker: Restocker, plumber: Plumber, pharmacist: Pharmacist };
 
-    const UPGRADE_COST = 60;
+    const UPGRADE_COST = 40; // tuned so 1.2x time beats the cost within one round for a strong player
     const UPGRADE_MULTIPLIER = 1.2; // §7.3
     const EMERGENCY_COST = 80;
     const EMERGENCY_SOMETIMES_CHANCE = 0.5;
 
-    // One list per round (§15).
-    const QUESTIONS = [
-      [
-        { text: 'Which of these is a need?', answers: ['A concert ticket', 'Rent', 'A new phone case'], correct: 1 },
-        { text: 'What is a budget?', answers: ['A plan for how you will use your money', 'A type of bank account', 'A loan from a store'], correct: 0 },
-        { text: 'What is an emergency fund for?', answers: ['Buying things on sale', 'Paying for vacations', 'Covering surprise costs'], correct: 2 }
-      ],
-      [
-        { text: 'Which of these is a want?', answers: ['Groceries', 'Designer sneakers', 'The electric bill'], correct: 1 },
-        { text: 'What does a savings account pay you?', answers: ['Interest', 'Rent', 'A bonus for every purchase'], correct: 0 },
-        { text: 'What is the best time to start saving?', answers: ['After an emergency', 'Only after buying what you want', 'Before you need the money'], correct: 2 }
-      ]
+    const ROUNDS = 2; // §15: the bank-or-buy choice sits between the two rounds
+    const QUESTIONS_PER_ROUND = 3;
+
+    // §9: team-authored bank, tagged by topic so the Mayor can pick topics later.
+    // Each Workday draws questions at random with no repeats, and answer order is shuffled.
+    const QUESTION_BANK = [
+      { topic: 'needs-wants', text: 'Which of these is a need?', answer: 'Rent', wrong: ['A concert ticket', 'A new phone case'] },
+      { topic: 'needs-wants', text: 'Which of these is a want?', answer: 'Designer sneakers', wrong: ['Groceries', 'The electric bill'] },
+      { topic: 'needs-wants', text: 'You have $20 left after bills. Which choice puts needs first?', answer: 'Buying food for the week', wrong: ['A new video game', 'Movie tickets for friends'] },
+      { topic: 'needs-wants', text: 'Why do needs come before wants in a budget?', answer: 'Needs keep you safe and healthy', wrong: ['Wants always cost more', 'Stores make you buy needs first'] },
+      { topic: 'budgeting', text: 'What is a budget?', answer: 'A plan for how you will use your money', wrong: ['A type of bank account', 'A loan from a store'] },
+      { topic: 'budgeting', text: 'You earn $100 and spend $120. What happened?', answer: 'You spent more than you earned', wrong: ['You saved $20', 'You broke even'] },
+      { topic: 'budgeting', text: 'Which expense usually costs about the same every month?', answer: 'Rent', wrong: ['Eating out', 'Birthday gifts'] },
+      { topic: 'budgeting', text: 'What is the first step in making a budget?', answer: 'Find out how much money comes in', wrong: ['Buy what you want first', 'Open a credit card'] },
+      { topic: 'budgeting', text: 'Tracking your spending helps you...', answer: 'See where your money goes', wrong: ['Earn interest automatically', 'Skip paying bills'] },
+      { topic: 'budgeting', text: 'Comparing prices before you buy helps you...', answer: 'Get the same thing for less', wrong: ['Spend more money', 'Never need a budget'] },
+      { topic: 'saving', text: 'What is an emergency fund for?', answer: 'Covering surprise costs', wrong: ['Buying things on sale', 'Paying for vacations'] },
+      { topic: 'saving', text: 'What is the best time to start saving?', answer: 'Before you need the money', wrong: ['After an emergency', 'Only after buying what you want'] },
+      { topic: 'saving', text: 'You save $5 a week. How much do you have after 10 weeks?', answer: '$50', wrong: ['$15', '$500'] },
+      { topic: 'saving', text: 'What does "pay yourself first" mean?', answer: 'Put money into savings before you spend', wrong: ['Buy yourself a treat every payday', 'Pay your bills late'] },
+      { topic: 'saving', text: 'Why save up for something instead of borrowing to buy it now?', answer: 'You avoid paying extra for the loan', wrong: ['Prices always go down', 'Stores only take saved money'] },
+      { topic: 'banking', text: 'What does a savings account pay you?', answer: 'Interest', wrong: ['Rent', 'A bonus for every purchase'] },
+      { topic: 'banking', text: 'Why keep money in a bank instead of at home?', answer: 'It is safer from loss and theft', wrong: ['The bank pays for everything you buy', 'You can never take it out'] },
+      { topic: 'banking', text: 'What does it mean to deposit money?', answer: 'Put money into an account', wrong: ['Take money out of an account', 'Borrow money from a friend'] },
+      { topic: 'banking', text: 'What does it mean to withdraw money?', answer: 'Take money out of an account', wrong: ['Put money into an account', 'Pay back a loan'] },
+      { topic: 'credit', text: 'When you borrow money, you usually pay back...', answer: 'More than you borrowed', wrong: ['Less than you borrowed', 'Exactly what you borrowed, always'] },
+      { topic: 'credit', text: 'What is interest on a loan?', answer: 'The extra cost of borrowing', wrong: ['A free gift from the bank', 'A kind of savings account'] },
+      { topic: 'credit', text: 'You borrow $100 with a 10% fee. How much do you pay back in total?', answer: '$110', wrong: ['$100', '$90'] },
+      { topic: 'credit', text: 'What does a credit score show?', answer: 'How reliably you pay back what you borrow', wrong: ['How much cash is in your wallet', 'How many things you own'] },
+      { topic: 'earning', text: 'What is net pay?', answer: 'What you take home after taxes and deductions', wrong: ['Your pay before taxes', 'A yearly bonus'] },
+      { topic: 'earning', text: 'Which usually helps you earn more over time?', answer: 'Learning new skills', wrong: ['Spending your whole paycheck', 'Skipping work'] }
     ];
 
+    function drawQuestions() {
+      const picked = shuffled(QUESTION_BANK).slice(0, ROUNDS * QUESTIONS_PER_ROUND).map((q) => {
+        const answers = shuffled([q.answer, ...q.wrong]);
+        return { text: q.text, answers, correct: answers.indexOf(q.answer) };
+      });
+      return Array.from({ length: ROUNDS }, (_, i) => picked.slice(i * QUESTIONS_PER_ROUND, (i + 1) * QUESTIONS_PER_ROUND));
+    }
+    console.assert(QUESTION_BANK.length >= ROUNDS * QUESTIONS_PER_ROUND, 'question bank covers a Workday without repeats');
+    console.assert(drawQuestions().flat().every((q) => q.answers[q.correct] === QUESTION_BANK.find((b) => b.text === q.text).answer), 'correct index follows the shuffle');
+
     const game = {
-      emergencySetting: null, joined: false, job: Restocker,
-      round: 0, questionIndex: 0, workSeconds: 0, foodShelterMultiplier: 1,
-      wallet: 0, bank: 0, totalEarned: 0, choiceSummary: 'You had no money to bank or spend after Round 1.', emergencySummary: 'No emergency happened this Workday.'
+      emergencySetting: null, joined: false, availableJobs: [], lastJob: null,
+      round: 0, questions: [], questionIndex: 0, workSeconds: 0, foodShelterMultiplier: 1,
+      wallet: 0, bank: 0, totalEarned: 0, earnedByRound: [], spentOnUpgrade: 0, paidForEmergency: 0, waived: 0, choiceSummary: 'You had no money to bank or spend after Round 1.', emergencySummary: 'No emergency happened this Workday.'
     };
     const el = (id) => document.getElementById(id);
 
@@ -270,7 +332,7 @@
     const secondsForCorrectAnswer = (multiplier) => SECONDS_PER_CORRECT * multiplier;
     console.assert(secondsForCorrectAnswer(1) === 15 && secondsForCorrectAnswer(1.2) === 18, 'seconds per correct answer');
 
-    const roundQuestions = () => QUESTIONS[game.round - 1];
+    const roundQuestions = () => game.questions[game.round - 1];
 
     function showMoney() {
       el('wallet').textContent = game.wallet;
@@ -291,7 +353,6 @@
 
     function showQuestion() {
       const question = roundQuestions()[game.questionIndex];
-      el('feedback').textContent = '';
       el('countdown').textContent = '';
       el('question-count').textContent = `Question ${game.questionIndex + 1} of ${roundQuestions().length}`;
       el('question-text').textContent = question.text;
@@ -309,29 +370,40 @@
       const question = roundQuestions()[game.questionIndex];
       el('answers').querySelectorAll('button').forEach((button) => { button.disabled = true; });
 
+      // Bold green for the right answer, bold red for a wrong pick; the words say it too, not just the color.
+      const answerText = (i, className) => Object.assign(document.createElement('strong'), { className, textContent: question.answers[i] });
+      const label = `Question ${game.questionIndex + 1}: `;
       if (index === question.correct) {
         const earned = secondsForCorrectAnswer(game.foodShelterMultiplier);
         game.workSeconds += earned;
         el('time-earned').textContent = game.workSeconds;
-        el('feedback').textContent = `Correct! +${earned} seconds of work time.`;
+        el('feedback').replaceChildren(label, 'Correct! ', answerText(index, 'answer-right'), `. +${earned} seconds of work time.`);
       } else {
-        el('feedback').textContent = `Not quite. The answer is: ${question.answers[question.correct]}.`;
+        el('feedback').replaceChildren(label, 'Not quite. You picked ', answerText(index, 'answer-wrong'),
+          '. The answer is ', answerText(question.correct, 'answer-right'), '.');
       }
 
       game.questionIndex += 1;
-      if (game.questionIndex === roundQuestions().length) showResults();
-      else startQuestionGap();
+      startQuestionGap(game.questionIndex === roundQuestions().length);
     }
 
-    function startQuestionGap() {
+    // §7.4: the gap also runs after the last question, so its feedback can be read before the results.
+    function startQuestionGap(lastQuestion) {
+      const next = lastQuestion ? showResults : showQuestion;
+      if (QUESTION_GAP_SECONDS <= 0) { // the feedback stays on screen under the next question
+        next();
+        return;
+      }
+      const label = lastQuestion ? 'Results in' : 'Next question in';
       let secondsLeft = QUESTION_GAP_SECONDS;
-      el('countdown').textContent = `Next question in ${secondsLeft}...`;
+      el('countdown').textContent = `${label} ${secondsLeft}...`;
       const timer = setInterval(() => {
         secondsLeft -= 1;
-        el('countdown').textContent = `Next question in ${secondsLeft}...`;
+        el('countdown').textContent = `${label} ${secondsLeft}...`;
         if (secondsLeft === 0) {
           clearInterval(timer);
-          showQuestion();
+          el('countdown').textContent = '';
+          next();
         }
       }, 1000);
     }
@@ -341,35 +413,64 @@
       el('results').hidden = false;
       // §7.1: energy is the only way into a job, so 0 correct means no job this round.
       const canWork = game.workSeconds > 0;
-      el('start-job').textContent = canWork ? `Go to work: ${game.job.name}` : 'Continue';
       el('results-text').textContent = canWork
-        ? `You earned ${game.workSeconds} seconds of work time.`
+        ? `You earned ${game.workSeconds} seconds of work time. Pick a job:`
         : 'You earned no work time, so you can\'t work a job this round.';
+      const makeButton = (text, job) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = text;
+        button.addEventListener('click', () => startJob(job));
+        return button;
+      };
+      // §8: students choose among the jobs the Mayor opened.
+      el('job-choice').replaceChildren(...(canWork
+        ? game.availableJobs.map((job) => makeButton(
+          game.lastJob && job !== game.lastJob ? `Work as ${job.name} (${JOB_SWAP_SECONDS}s to travel there)` : `Work as ${job.name}`, job))
+        : [makeButton('Continue', null)]));
     }
 
-    function startJob() {
+    function startJob(job) {
       const seconds = game.workSeconds;
       game.workSeconds = 0;
       el('time-line').hidden = true;
       el('feedback').textContent = '';
       el('results').hidden = true;
-      if (seconds <= 0) { // §7.1: the energy gate
+      if (!job || seconds <= 0) { // §7.1: the energy gate
         finishJob({ earnings: 0, summary: 'You didn\'t work this round.' });
         return;
       }
-      game.job.start(el('job-area'), seconds, finishJob);
+      const swapping = game.lastJob && job !== game.lastJob;
+      game.lastJob = job;
+      if (!swapping) {
+        job.start(el('job-area'), seconds, finishJob);
+        return;
+      }
+      // §7.4: switching jobs costs travel time, which doesn't come out of work time.
+      let secondsLeft = JOB_SWAP_SECONDS;
+      el('countdown').textContent = `Traveling to your ${job.name} job: ${secondsLeft}...`;
+      const timer = setInterval(() => {
+        secondsLeft -= 1;
+        el('countdown').textContent = `Traveling to your ${job.name} job: ${secondsLeft}...`;
+        if (secondsLeft === 0) {
+          clearInterval(timer);
+          el('countdown').textContent = '';
+          job.start(el('job-area'), seconds, finishJob);
+        }
+      }, 1000);
     }
 
     // §7.2: every job pays its performance-based earnings into the same wallet.
     function finishJob({ earnings, summary }) {
       game.wallet += earnings;
       game.totalEarned += earnings;
+      game.earnedByRound.push(earnings);
       showMoney();
       el('payout-text').textContent = `${summary} You earned $${earnings}.`;
       el('payout').hidden = false;
 
       // §15: the bank-or-spend choice sits between the rounds, so an upgrade pays off before the emergency.
-      const lastRound = game.round === QUESTIONS.length;
+      const lastRound = game.round === ROUNDS;
       const canChoose = !lastRound && game.wallet > 0;
       el('money-choice').hidden = !canChoose;
       el('continue').hidden = canChoose;
@@ -394,6 +495,7 @@
 
     function buyUpgrade() {
       game.wallet -= UPGRADE_COST;
+      game.spentOnUpgrade += UPGRADE_COST;
       game.foodShelterMultiplier = UPGRADE_MULTIPLIER;
       game.choiceSummary = `After Round 1 you bought Food & Shelter for $${UPGRADE_COST}.`;
       showMoney();
@@ -401,7 +503,7 @@
     }
 
     function continueWorkday() {
-      if (game.round < QUESTIONS.length) startRound();
+      if (game.round < ROUNDS) startRound();
       else if (emergencyHappens(game.emergencySetting, Math.random())) showEmergency();
       else showSummary();
     }
@@ -420,6 +522,8 @@
       const { fromWallet, fromBank, waived } = payCharge(game.wallet, game.bank, EMERGENCY_COST, bankFirst);
       game.wallet -= fromWallet;
       game.bank -= fromBank;
+      game.paidForEmergency = fromWallet + fromBank;
+      game.waived = waived;
       game.emergencySummary = `The $${EMERGENCY_COST} bike repair took $${fromWallet} from your wallet and $${fromBank} from your bank.`;
       if (waived > 0) game.emergencySummary += ` The other $${waived} was waived because you had no money left.`;
       showMoney();
@@ -427,9 +531,29 @@
       showSummary();
     }
 
+    const minusDollars = (amount) => (amount ? `-$${amount}` : '$0');
+
     function showSummary() {
       el('workday-title').textContent = 'Workday summary';
       el('payout').hidden = true;
+      const rows = [
+        ...game.earnedByRound.map((amount, i) => [`Earned in Round ${i + 1}`, `$${amount}`]),
+        ['Total earned', `$${game.totalEarned}`, 'total'],
+        ['Spent on Food & Shelter', minusDollars(game.spentOnUpgrade)],
+        ['Paid for the emergency', minusDollars(game.paidForEmergency)],
+        ...(game.waived ? [['Emergency cost waived (not paid)', `$${game.waived}`]] : []),
+        ['Wallet at the end', `$${game.wallet}`],
+        ['Bank at the end', `$${game.bank}`],
+        ['Total you have now', `$${game.wallet + game.bank}`, 'total']
+      ];
+      el('money-table').replaceChildren(...rows.map(([label, amount, className]) => {
+        const row = document.createElement('tr');
+        if (className) row.className = className;
+        row.append(Object.assign(document.createElement('td'), { textContent: label }),
+          Object.assign(document.createElement('td'), { textContent: amount }));
+        return row;
+      }));
+      console.assert(game.totalEarned - game.spentOnUpgrade - game.paidForEmergency === game.wallet + game.bank, 'money table adds up');
       el('summary-list').replaceChildren(...[
         `You earned $${game.totalEarned} from work.`,
         game.choiceSummary,
@@ -447,7 +571,6 @@
     el('choose-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
     el('choose-resident').addEventListener('click', showResidentPortal);
     el('demo-to-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
-    el('start-job').addEventListener('click', startJob);
     el('bank-all').addEventListener('click', bankAll);
     el('buy-upgrade').addEventListener('click', buyUpgrade);
     el('continue').addEventListener('click', continueWorkday);
@@ -469,7 +592,15 @@
     // §4: the Mayor starts the Workday from the waiting room. §12: emergency setting is Mayor-controlled.
     el('start-form').addEventListener('submit', (event) => {
       event.preventDefault();
-      game.emergencySetting = new FormData(event.target).get('emergency');
+      const form = new FormData(event.target);
+      game.availableJobs = form.getAll('jobs').map((key) => JOBS[key]);
+      if (!game.availableJobs.length) {
+        el('jobs-error').textContent = 'Open at least one job.';
+        return;
+      }
+      el('jobs-error').textContent = '';
+      game.emergencySetting = form.get('emergency');
+      game.questions = drawQuestions();
       showScreen('workday', 'resident');
       startRound();
     });

@@ -29,7 +29,7 @@ Login, educator dashboard, persistence, city landscape, multiple jobs may be stu
 
 The demo runs 2 rounds of questions and job, with the bank-or-buy choice between them, so an upgrade pays off before the emergency.
 
-Jobs are 2D games. Restocker is built: 10 seconds to memorize the list, then find the shelves from memory, using work time earned from answers. Planned: Plumber (rotate pipes to connect outpipe to inpipe) and Pharmacist (combine vials using a recipe sheet to make a goal vial). Details are in `docs/claude_code_game_request.md`. *(Replaces Grocery Dash and Pipe Fixer; overrides §8 until the spec is updated.)*
+Jobs are 2D games. Restocker is built: a grocery list of 4 items with their aisle and shelf sits beside the store, and a new list arrives each time one is done until work time runs out. *(Team decision 2026-11-03: the list stays visible, so there's no memorizing.)* Plumber is built: rotate pipes to connect outpipe to inpipe, with bigger grids paying more. Pharmacist is built: combine vials using a recipe sheet to make a goal vial. Orders are short generated chains (2 mixes, then 3), and vials aren't used up when mixed. Details are in `docs/claude_code_game_request.md`. *(Replaces Grocery Dash and Pipe Fixer; overrides §8 until the spec is updated.)*
 
 Mayor and Resident are separate portals. There's no backend, so both run in one browser. The Mayor sets which jobs are available and students choose among them.
 
@@ -37,7 +37,7 @@ Mayor and Resident are separate portals. There's no backend, so both run in one 
 
 - When the spec is ambiguous, ask rather than guess. Known flag: §11.5 borrowing limit is read as *greater of* 25% of bank or $50 — confirm before relying on it.
 - `avasary_demo.html` (village + daily tasks build) is superseded. Do not build on it.
-- Keep friction timers (~5s between questions, ~15s on job swap) and loan/bankruptcy numbers as tunable constants, not hardcoded literals.
+- Keep friction timers (~5s between questions, ~15s on job swap) and loan/bankruptcy numbers as tunable constants, not hardcoded literals. *(Team decision 2026-11-03: the question gap is 0 for now.)*
 - Cite the spec section (e.g. §13.2) in comments when implementing a mechanic.
 
 ## How to run
