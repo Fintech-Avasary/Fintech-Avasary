@@ -11,6 +11,9 @@ const STORE_AISLE_COLS = [2, 5, 8]; // Aisle 1, 2, 3
 const STORE_SHELF_ROWS = [1, 2, 3]; // Shelf A, B, C
 const STORE_SHELF_LETTERS = 'ABC';
 const STORE_START = { x: 0, y: 4 };
+// Pixel-art Resident: h hair, s skin, e eyes, b shirt, p pants, . empty.
+const PLAYER_SPRITE = ['..hhhh..', '.hhhhhh.', '.sesses.', '.ssssss.', 'bbbbbbbb', 'sbbbbbbs', '.pppppp.', '.pp..pp.'];
+const SPRITE_COLORS = { h: '#3b2a1a', s: '#e0a878', e: '#23302b', b: '#2f3e8f', p: '#23302b' };
 
 function shuffled(list) {
   const copy = [...list];
@@ -87,11 +90,15 @@ const Restocker = {
       const context = container.querySelector('canvas').getContext('2d');
 
       function draw() {
-        context.fillStyle = '#f4f1ea';
-        context.fillRect(0, 0, STORE_COLS * STORE_TILE, STORE_ROWS * STORE_TILE);
+        for (let y = 0; y < STORE_ROWS; y++) { // checkered floor tiles
+          for (let x = 0; x < STORE_COLS; x++) {
+            context.fillStyle = (x + y) % 2 ? '#ebe6d9' : '#f4f1ea';
+            context.fillRect(x * STORE_TILE, y * STORE_TILE, STORE_TILE, STORE_TILE);
+          }
+        }
         context.textAlign = 'center';
         context.textBaseline = 'middle';
-        context.font = '14px system-ui, sans-serif';
+        context.font = 'bold 14px system-ui, sans-serif'; // pixel font made B/C look like 8/0 at this size
 
         const near = adjacentShelf(player.x, player.y);
         const done = items.slice(0, restocked);
@@ -103,6 +110,9 @@ const Restocker = {
             const stocked = done.some((item) => item.aisle === spot.aisle && item.shelf === spot.shelf);
             context.fillStyle = stocked ? '#1f6f54' : '#8a6d4b';
             context.fillRect(x * STORE_TILE + 1, y * STORE_TILE + 1, STORE_TILE - 2, STORE_TILE - 2);
+            context.fillStyle = 'rgba(0, 0, 0, 0.25)'; // plank lines
+            context.fillRect(x * STORE_TILE + 1, y * STORE_TILE + 1, STORE_TILE - 2, 4);
+            context.fillRect(x * STORE_TILE + 1, (y + 1) * STORE_TILE - 5, STORE_TILE - 2, 4);
             context.fillStyle = '#ffffff';
             context.fillText(stocked ? `${spot.shelf} ✓` : spot.shelf, (x + 0.5) * STORE_TILE, (y + 0.5) * STORE_TILE);
             if (near && near.aisle === spot.aisle && near.shelf === spot.shelf) {
@@ -113,10 +123,12 @@ const Restocker = {
           });
         });
 
-        context.fillStyle = '#2f3e8f';
-        context.beginPath();
-        context.arc((player.x + 0.5) * STORE_TILE, (player.y + 0.5) * STORE_TILE, STORE_TILE * 0.35, 0, Math.PI * 2);
-        context.fill();
+        const pixel = STORE_TILE / 10; // 8x8 sprite centered in the tile
+        PLAYER_SPRITE.forEach((row, sy) => [...row].forEach((key, sx) => {
+          if (!SPRITE_COLORS[key]) return;
+          context.fillStyle = SPRITE_COLORS[key];
+          context.fillRect(player.x * STORE_TILE + (sx + 1) * pixel, player.y * STORE_TILE + (sy + 1) * pixel, pixel, pixel);
+        }));
       }
 
       function showChecklist() {

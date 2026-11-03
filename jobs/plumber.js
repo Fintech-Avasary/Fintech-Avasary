@@ -1,6 +1,6 @@
 // Plumber job (§8): rotate pipe tiles until water runs from the outpipe (left) to the inpipe (right).
 const PLUMBER_GRID_SIZES = [3, 4, 4, 5]; // later grids stay at the last size
-const PLUMBER_PAY_PER_TILE = 10; // §7.2: only finished routes pay; bigger grids pay more
+const PLUMBER_PAY_PER_TILE = 7; // §7.2: only finished routes pay; bigger grids pay more
 
 // Tile openings as a bitmask.
 const PIPE_N = 1, PIPE_E = 2, PIPE_S = 4, PIPE_W = 8;
@@ -99,8 +99,8 @@ function pipeSvg(mask, wet) {
   const color = wet ? '#1c6fd1' : '#7a7f86';
   const lines = PIPE_DIRS.filter((d) => mask & d.bit)
     .map((d) => `<line x1="20" y1="20" x2="${ends[d.bit][0]}" y2="${ends[d.bit][1]}"/>`).join('');
-  return `<svg viewBox="0 0 40 40" aria-hidden="true"><g stroke="${color}" stroke-width="10">${lines}</g>`
-    + `<circle cx="20" cy="20" r="5" fill="${color}"/></svg>`;
+  return `<svg viewBox="0 0 40 40" aria-hidden="true" shape-rendering="crispEdges"><g stroke="${color}" stroke-width="12">${lines}</g>`
+    + `<rect x="14" y="14" width="12" height="12" fill="${color}"/></svg>`; // square joint for the pixel look
 }
 
 const Plumber = {
@@ -130,10 +130,10 @@ const Plumber = {
       const { size, startRow, endRow, grid } = puzzle;
       const wet = wetCells(grid, startRow);
       const gridEl = part('grid');
-      gridEl.style.gridTemplateColumns = `2.5rem repeat(${size}, 1fr) 2.5rem`;
+      gridEl.style.gridTemplateColumns = `1.75rem repeat(${size}, 1fr) 1.75rem`; // narrow end labels keep 5x5 tiles >= 44px at 360px
       const cells = [];
       for (let r = 0; r < size; r++) {
-        cells.push(Object.assign(document.createElement('span'), { className: 'pipe-end', textContent: r === startRow ? 'Out →' : '' }));
+        cells.push(Object.assign(document.createElement('span'), { className: 'pipe-end', textContent: r === startRow ? 'Out\n→' : '' }));
         for (let c = 0; c < size; c++) {
           const button = document.createElement('button');
           button.type = 'button';
@@ -144,7 +144,7 @@ const Plumber = {
           button.addEventListener('click', () => turn(r, c));
           cells.push(button);
         }
-        cells.push(Object.assign(document.createElement('span'), { className: 'pipe-end', textContent: r === endRow ? '→ In' : '' }));
+        cells.push(Object.assign(document.createElement('span'), { className: 'pipe-end', textContent: r === endRow ? 'In\n→' : '' }));
       }
       gridEl.replaceChildren(...cells);
     }

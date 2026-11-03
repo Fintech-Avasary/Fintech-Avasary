@@ -1,6 +1,6 @@
 // Pharmacist job (§8): combine vials using the recipe sheet until you make the goal vial.
 // Vials aren't used up when mixed, so a starting vial can go into several recipes.
-const PHARMACIST_PAY_PER_RECIPE = 25; // §7.2: only a finished goal pays; longer recipe chains pay more
+const PHARMACIST_PAY_PER_RECIPE = 20; // §7.2: only a finished goal pays; longer recipe chains pay more
 const PHARMACIST_START_VIALS = ['A', 'B', 'C'];
 const PHARMACIST_ORDER_STEPS = [2, 3]; // recipes per order: first order, then every later one (kept short on purpose)
 const PHARMACIST_DECOYS = 1; // recipes on the sheet that don't lead to the goal

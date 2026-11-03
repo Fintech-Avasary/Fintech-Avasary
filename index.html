@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Avasary</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&display=swap">
   <style>
     :root {
       --bg: #f4f1ea;
@@ -73,7 +75,8 @@
     .restock-list h3 { margin: 8px 0 0; font-size: 0.9rem; }
     .restock-store { flex: 3 1 340px; min-width: 0; }
     .job-current { font-weight: 600; }
-    .pipe-grid { display: grid; gap: 4px; margin: 12px 0; align-items: center; }
+    .pipe-grid { display: grid; gap: 2px; margin: 12px 0; align-items: center; }
+    @media (max-width: 420px) { main { padding: 16px; } } /* phones: room for 44px Plumber tiles */
     .pipe-grid button { padding: 0; aspect-ratio: 1; background: #e9e4d8; border: 1px solid var(--line); border-radius: 4px; touch-action: manipulation; }
     .pipe-grid button svg { display: block; width: 100%; height: 100%; }
     .vial-goal { font-weight: 600; }
@@ -85,7 +88,7 @@
     .vial-shelf { display: flex; flex-wrap: wrap; gap: 8px; }
     .vial-shelf button.vial { width: 3rem; height: 3.5rem; padding: 0; font-size: 1.1rem; touch-action: manipulation; }
     .vial-shelf button[aria-pressed="true"] { outline: 4px solid #d9480f; outline-offset: 2px; }
-    .pipe-end { font-size: 0.75rem; font-weight: 600; text-align: center; color: #1c6fd1; }
+    .pipe-end { font-size: 0.7rem; line-height: 1.2; white-space: pre-line; font-weight: 600; text-align: center; color: #1c6fd1; }
     .muted { color: var(--muted); }
     .money-table { width: 100%; margin: 12px 0; border-collapse: collapse; }
     .money-table td { padding: 6px 4px; border-bottom: 1px solid var(--line); }
@@ -97,6 +100,29 @@
     .portal-badge { margin-bottom: 8px; font-size: 0.875rem; font-weight: 600; }
     main[data-portal="mayor"] .portal-badge { color: var(--mayor); }
     main[data-portal="resident"] .portal-badge { color: var(--accent); }
+
+    /* Pixel skin: square corners, chunky borders, hard shadows. Delete this block to go back to the plain look. */
+    body {
+      background-color: var(--bg);
+      background-image: conic-gradient(#ebe6d9 25%, transparent 0 50%, #ebe6d9 0 75%, transparent 0);
+      background-size: 16px 16px;
+    }
+    main { border: 4px solid var(--ink); border-top-width: 10px; border-radius: 0; box-shadow: 6px 6px 0 var(--ink); }
+    main:not([data-portal]) { border-top-color: var(--ink); }
+    h1, h2, h3, legend, button, .portal-badge { font-family: 'Pixelify Sans', ui-monospace, monospace; letter-spacing: 0.02em; }
+    h1 { font-size: 1.75rem; }
+    h2 { font-size: 1.15rem; }
+    fieldset, input[type="text"], .vial-sheet, canvas { border: 3px solid var(--ink); border-radius: 0; }
+    .vial-sheet { border-style: dashed; }
+    button { border: 3px solid var(--ink); border-radius: 0; box-shadow: 3px 3px 0 var(--ink); }
+    button:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: none; }
+    button.secondary { border: 3px solid var(--ink); background: var(--card); }
+    .pipe-grid button { border: 2px solid var(--ink); border-radius: 0; box-shadow: none; } /* no shadow: keeps 5x5 tiles >= 44px on phones */
+    .pipe-grid button:active { transform: none; }
+    /* readable font for longer text and single letters (pixel B/C look like 8/0) */
+    #portal-choice button span, .vial-shelf button.vial { font-family: system-ui, sans-serif; }
+    .vial, .vial-shelf button.vial { border-radius: 0; }
+    canvas { image-rendering: pixelated; }
   </style>
 </head>
 <body>
@@ -235,7 +261,7 @@
 
     const UPGRADE_COST = 40; // tuned so 1.2x time beats the cost within one round for a strong player
     const UPGRADE_MULTIPLIER = 1.2; // §7.3
-    const EMERGENCY_COST = 80;
+    const EMERGENCY_COST = 150; // about half a strong round, so the saver vs. spender gap is visible
     const EMERGENCY_SOMETIMES_CHANCE = 0.5;
 
     const ROUNDS = 2; // §15: the bank-or-buy choice sits between the two rounds
