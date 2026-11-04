@@ -44,7 +44,7 @@
     fieldset { margin: 24px 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; }
     legend { padding: 0 4px; font-weight: 600; }
     label { display: block; padding: 6px 0; cursor: pointer; }
-    input[type="text"] { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid var(--muted); border-radius: 8px; font: inherit; }
+    input[type="text"], input[type="number"] { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid var(--muted); border-radius: 8px; font: inherit; }
     button {
       width: 100%;
       padding: 12px;
@@ -62,7 +62,7 @@
     #answers button { margin-top: 8px; }
     #portal-choice button { margin-top: 16px; }
     #portal-choice button span { display: block; font-weight: 400; }
-    #job-choice button, #continue, #bank-all, #buy-upgrade, #pay-emergency { margin-top: 12px; }
+    #job-choice button, #continue, #money-done, #pay-emergency { margin-top: 12px; }
     canvas { display: block; width: 100%; height: auto; margin: 8px 0; border: 1px solid var(--line); }
     .job-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 8px; touch-action: manipulation; }
     .job-controls [data-move="up"] { grid-column: 2; }
@@ -121,7 +121,7 @@
     legend { font-size: 0.75rem; }
     button { font-size: 0.75rem; line-height: 1.6; }
     .portal-badge { font-size: 0.65rem; }
-    fieldset, input[type="text"], .vial-sheet, canvas { border: 3px solid var(--ink); border-radius: 0; }
+    fieldset, input[type="text"], input[type="number"], .vial-sheet, canvas { border: 3px solid var(--ink); border-radius: 0; }
     .vial-sheet { border-style: dashed; }
     button { border: 3px solid var(--ink); border-radius: 0; box-shadow: 3px 3px 0 var(--ink); }
     button:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: none; }
@@ -236,8 +236,11 @@
           <p id="payout-text"></p>
           <div id="money-choice" hidden>
             <h2>What will you do with your wallet money?</h2>
-            <button type="button" id="bank-all"></button>
-            <button type="button" id="buy-upgrade"></button>
+            <label><input type="checkbox" id="buy-upgrade"> <span id="buy-upgrade-text"></span></label>
+            <label for="bank-amount">Amount to put in the bank ($<span id="bank-max"></span> max)</label>
+            <input type="number" id="bank-amount" min="0" step="1" inputmode="numeric">
+            <p id="money-plan" class="muted" aria-live="polite"></p>
+            <button type="button" id="money-done"></button>
           </div>
           <button type="button" id="continue" hidden></button>
         </div>
@@ -278,7 +281,12 @@
 
     const UPGRADE_COST = 40; // tuned so 1.2x time beats the cost within one round for a strong player
     const UPGRADE_MULTIPLIER = 1.2; // §7.3
-    const EMERGENCY_COST = 150; // about half a strong round, so the saver vs. spender gap is visible
+    // §12: unplanned cost, random each Workday. Top end is about one strong round (~$450 in the 11-03 playtest).
+    const EMERGENCY_COST_MIN = 150, EMERGENCY_COST_MAX = 400, EMERGENCY_COST_STEP = 10;
+    const randomEmergencyCost = (roll) =>
+      EMERGENCY_COST_MIN + Math.floor(roll * ((EMERGENCY_COST_MAX - EMERGENCY_COST_MIN) / EMERGENCY_COST_STEP + 1)) * EMERGENCY_COST_STEP;
+    console.assert(randomEmergencyCost(0) === 150 && randomEmergencyCost(0.9999) === 400 && randomEmergencyCost(0.5) % 10 === 0,
+      'emergency cost spans $150-$400 in $10 steps');
     const EMERGENCY_SOMETIMES_CHANCE = 0.5;
 
     const ROUNDS = 2; // §15: the bank-or-buy choice sits between the two rounds
@@ -656,28 +664,49 @@
       el('continue').hidden = canChoose;
       el('continue').textContent = lastRound ? 'Finish the Workday' : `Start Round ${game.round + 1}`;
       if (canChoose) {
-        el('bank-all').textContent = `Bank all $${game.wallet}`;
+        el('buy-upgrade').checked = false;
         el('buy-upgrade').disabled = game.wallet < UPGRADE_COST;
-        el('buy-upgrade').textContent = game.wallet < UPGRADE_COST
+        el('buy-upgrade-text').textContent = game.wallet < UPGRADE_COST
           ? `Food & Shelter costs $${UPGRADE_COST}: not enough money`
           : `Buy Food & Shelter for $${UPGRADE_COST}: ${UPGRADE_MULTIPLIER}x work time per correct answer`;
+        el('bank-amount').value = 0;
+        el('money-done').textContent = `Start Round ${game.round + 1}`;
+        updateMoneyPlan();
       }
     }
 
-    // §11.1: deposits have no limits.
-    function bankAll() {
-      game.choiceSummary = `After Round 1 you banked $${game.wallet}.`;
-      game.bank += game.wallet;
-      game.wallet = 0;
-      showMoney();
-      startRound();
+    // The most a Resident can bank right now: the wallet, less the upgrade if it's ticked.
+    const bankMax = () => game.wallet - (el('buy-upgrade').checked ? UPGRADE_COST : 0);
+
+    // §11.1: deposits have no limits, so any whole amount up to the wallet is allowed.
+    function clampDeposit(value, max) {
+      const amount = Math.floor(Number(value));
+      return Number.isFinite(amount) ? Math.min(Math.max(amount, 0), max) : 0;
+    }
+    console.assert(clampDeposit('25', 60) === 25 && clampDeposit('90', 60) === 60 && clampDeposit('-5', 60) === 0
+      && clampDeposit('', 60) === 0 && clampDeposit('abc', 60) === 0 && clampDeposit('12.7', 60) === 12, 'deposit is a whole amount from 0 to the max');
+
+    function updateMoneyPlan() {
+      const max = bankMax();
+      const deposit = clampDeposit(el('bank-amount').value, max);
+      el('bank-max').textContent = max;
+      el('bank-amount').max = max;
+      el('money-plan').textContent = `Bank $${deposit}, keep $${max - deposit} in your wallet.`;
     }
 
-    function buyUpgrade() {
-      game.wallet -= UPGRADE_COST;
-      game.spentOnUpgrade += UPGRADE_COST;
-      game.foodShelterMultiplier = UPGRADE_MULTIPLIER;
-      game.choiceSummary = `After Round 1 you bought Food & Shelter for $${UPGRADE_COST}.`;
+    // §15: bank, buy, or both. The upgrade comes out first, then any amount of the rest goes to the bank.
+    function confirmMoneyChoice() {
+      const buy = el('buy-upgrade').checked;
+      const deposit = clampDeposit(el('bank-amount').value, bankMax());
+      if (buy) {
+        game.wallet -= UPGRADE_COST;
+        game.spentOnUpgrade += UPGRADE_COST;
+        game.foodShelterMultiplier = UPGRADE_MULTIPLIER;
+      }
+      game.wallet -= deposit;
+      game.bank += deposit;
+      const did = [buy && `bought Food & Shelter for $${UPGRADE_COST}`, `banked $${deposit}`].filter(Boolean).join(', ');
+      game.choiceSummary = `After Round 1 you ${did} and kept $${game.wallet} in your wallet.`;
       showMoney();
       startRound();
     }
@@ -691,7 +720,8 @@
     function showEmergency() {
       el('workday-title').textContent = 'Emergency!';
       el('payout').hidden = true;
-      el('emergency-text').textContent = `Your bike broke down and you need it for work. The repair costs $${EMERGENCY_COST}, and you can't skip it.`;
+      game.emergencyCost = randomEmergencyCost(Math.random());
+      el('emergency-text').textContent = `Your bike broke down and you need it for work. The repair costs $${game.emergencyCost}, and you can't skip it.`;
       el('pay-order').hidden = !(game.wallet > 0 && game.bank > 0); // only a choice when both can pay
       el('pay-emergency').textContent = game.wallet + game.bank > 0 ? 'Pay the bill' : 'Continue';
       el('emergency').hidden = false;
@@ -699,12 +729,12 @@
 
     function payEmergency() {
       const bankFirst = document.querySelector('input[name="pay-order"]:checked').value === 'bank';
-      const { fromWallet, fromBank, waived } = payCharge(game.wallet, game.bank, EMERGENCY_COST, bankFirst);
+      const { fromWallet, fromBank, waived } = payCharge(game.wallet, game.bank, game.emergencyCost, bankFirst);
       game.wallet -= fromWallet;
       game.bank -= fromBank;
       game.paidForEmergency = fromWallet + fromBank;
       game.waived = waived;
-      game.emergencySummary = `The $${EMERGENCY_COST} bike repair took $${fromWallet} from your wallet and $${fromBank} from your bank.`;
+      game.emergencySummary = `The $${game.emergencyCost} bike repair took $${fromWallet} from your wallet and $${fromBank} from your bank.`;
       if (waived > 0) game.emergencySummary += ` The other $${waived} was waived because you had no money left.`;
       showMoney();
       el('emergency').hidden = true;
@@ -758,8 +788,9 @@
     el('choose-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
     el('choose-resident').addEventListener('click', showResidentPortal);
     el('demo-to-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
-    el('bank-all').addEventListener('click', bankAll);
-    el('buy-upgrade').addEventListener('click', buyUpgrade);
+    el('buy-upgrade').addEventListener('change', updateMoneyPlan);
+    el('bank-amount').addEventListener('input', updateMoneyPlan);
+    el('money-done').addEventListener('click', confirmMoneyChoice);
     el('continue').addEventListener('click', continueWorkday);
     el('pay-emergency').addEventListener('click', payEmergency);
     document.querySelectorAll('[data-go-to-choice]').forEach((button) => {

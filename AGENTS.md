@@ -55,6 +55,8 @@ Plain HTML, CSS and JavaScript. There is no build step and nothing to install.
 | `jobs/` | One plain script per job, with `name`, `howTo` (instruction lines), `howToFrames` and `drawHowTo(context, frame)` (instruction animation) and `start(container, seconds, onDone)`. ES modules fail when `index.html` is opened by double-click, so don't use them. |
 | `docs/avasary_design_spec.md` | Design spec, the source of truth for all mechanics |
 | `docs/claude_code_game_request.md` | Request for the portals and the three-job lineup |
+| `docs/Judging_Rubric.md` | FinTech challenge judging rubric (lightning demo Nov 13, Final Demo Day Nov 18) |
+| `docs/rubric_feedback.md` | How the project stands against the rubric, and the plan for both demo dates |
 | `logs/` | Session logs, one file per work session (see `logs/README.md`) |
 | `AGENTS.md` | This file: instructions for agents |
 | `CLAUDE.md` | Imports this file for Claude Code. Don't add anything else to it. |

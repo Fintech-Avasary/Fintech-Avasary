@@ -1,14 +1,15 @@
 // Pharmacist job (§8): combine vials using the recipe sheet until you make the goal vial.
 // Vials aren't used up when mixed, so a starting vial can go into several recipes.
-const PHARMACIST_PAY_PER_RECIPE = 20; // §7.2: only a finished goal pays; longer recipe chains pay more
+const PHARMACIST_PAY_PER_RECIPE = 28; // §7.2: longer recipe chains pay more
+// Part pay at the whistle: each needed mix already made pays the same rate, so extra seconds (§7.3) always count.
 const PHARMACIST_START_VIALS = ['A', 'B', 'C'];
 const PHARMACIST_ORDER_STEPS = [2, 3]; // recipes per order: first order, then every later one (kept short on purpose)
 const PHARMACIST_DECOYS = 1; // recipes on the sheet that don't lead to the goal
 
 const vialPairKey = (a, b) => [a, b].sort().join('+');
 
-// Recipes the goal depends on, so a puzzle's pay matches its real length.
-function neededRecipeCount(recipes, goal) {
+// Vials the goal depends on (one per needed recipe), so pay matches the real chain and decoys pay nothing.
+function neededVials(recipes, goal) {
   const byOutput = new Map(recipes.map(([a, b, out]) => [out, [a, b]]));
   const needed = new Set();
   (function visit(vial) {
@@ -16,7 +17,7 @@ function neededRecipeCount(recipes, goal) {
     needed.add(vial);
     byOutput.get(vial).forEach(visit);
   })(goal);
-  return needed.size;
+  return needed;
 }
 
 // A chain of `steps` recipes ending at the goal, plus decoys, in shuffled sheet order.
@@ -59,10 +60,10 @@ function makeVialPuzzle(steps) {
   return { recipes, goal };
 }
 
-console.assert(neededRecipeCount([['A', 'B', 'D'], ['D', 'C', 'E'], ['A', 'C', 'F']], 'E') === 2, 'decoy recipes are not counted');
+console.assert(neededVials([['A', 'B', 'D'], ['D', 'C', 'E'], ['A', 'C', 'F']], 'E').size === 2, 'decoy recipes are not counted');
 console.assert((() => {
   const { recipes, goal } = makeVialPuzzle(5);
-  return neededRecipeCount(recipes, goal) === 5 && new Set(recipes.map(([a, b]) => vialPairKey(a, b))).size === recipes.length;
+  return neededVials(recipes, goal).size === 5 && new Set(recipes.map(([a, b]) => vialPairKey(a, b))).size === recipes.length;
 })(), 'generated puzzle: 5 needed recipes, no pair with two results');
 
 const vialColor = (vial) => `hsl(${(vial.charCodeAt(0) - 65) * 47 % 360} 55% 42%)`;
@@ -74,7 +75,8 @@ const Pharmacist = {
     'The recipe sheet shows which two vials mix into a new one, for example A + B = D.',
     'Tap two of your vials to mix them. You keep both vials and get the new one too.',
     'Some orders need a few mixes in a row, and one recipe on the sheet is a decoy you don\'t need.',
-    `Make the goal vial to fill the order. You earn $${PHARMACIST_PAY_PER_RECIPE} for each mix the order needs.`
+    `Make the goal vial to fill the order. You earn $${PHARMACIST_PAY_PER_RECIPE} for each mix the order needs.`,
+    'If time runs out mid-order, you\'re still paid for each needed mix you made. Decoys pay nothing.'
   ],
   howToFrames: 8,
 
@@ -184,7 +186,7 @@ const Pharmacist = {
       }
       const out = recipe[2];
       if (out === puzzle.goal) {
-        const pay = neededRecipeCount(puzzle.recipes, puzzle.goal) * PHARMACIST_PAY_PER_RECIPE;
+        const pay = neededVials(puzzle.recipes, puzzle.goal).size * PHARMACIST_PAY_PER_RECIPE;
         earnings += pay;
         solvedCount += 1;
         part('solved').textContent = solvedCount;
@@ -209,7 +211,11 @@ const Pharmacist = {
     function finish() {
       clearInterval(timer);
       container.replaceChildren();
-      onDone({ earnings, summary: `You filled ${solvedCount} ${solvedCount === 1 ? 'order' : 'orders'}.` });
+      const needed = neededVials(puzzle.recipes, puzzle.goal);
+      const partMixes = owned.filter((vial) => needed.has(vial)).length;
+      earnings += partMixes * PHARMACIST_PAY_PER_RECIPE;
+      const partNote = partMixes ? ` Part pay: ${partMixes} needed ${partMixes === 1 ? 'mix' : 'mixes'} on the last order (+$${partMixes * PHARMACIST_PAY_PER_RECIPE}).` : '';
+      onDone({ earnings, summary: `You filled ${solvedCount} ${solvedCount === 1 ? 'order' : 'orders'}.${partNote}` });
     }
 
     part('time').textContent = secondsLeft;

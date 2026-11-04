@@ -1,6 +1,7 @@
 // Plumber job (§8): rotate pipe tiles until water runs from the outpipe (left) to the inpipe (right).
 const PLUMBER_GRID_SIZES = [3, 4, 4, 5]; // later grids stay at the last size
-const PLUMBER_PAY_PER_TILE = 6; // §7.2: only finished routes pay; bigger grids pay more
+const PLUMBER_PAY_PER_TILE = 6; // §7.2: a finished grid pays every tile; bigger grids pay more
+// Part pay at the whistle: each tile joined to Out or In pays the same rate, so extra seconds (§7.3) always count.
 
 // Tile openings as a bitmask.
 const PIPE_N = 1, PIPE_E = 2, PIPE_S = 4, PIPE_W = 8;
@@ -16,13 +17,13 @@ const rotatePipe = (mask) => ((mask << 1) | (mask >> 3)) & 15; // 90 degrees clo
 const oppositePipe = (bit) => rotatePipe(rotatePipe(bit));
 const randomInt = (n) => Math.floor(Math.random() * n);
 
-// Cells water reaches, entering the outpipe cell from the left.
-function wetCells(grid, startRow) {
+// Cells joined to an edge pipe: from the outpipe (left, PIPE_W) this is where water reaches.
+function wetCells(grid, startRow, startCol = 0, entryBit = PIPE_W) {
   const size = grid.length;
   const wet = new Set();
-  if (!(grid[startRow][0] & PIPE_W)) return wet;
-  const queue = [[startRow, 0]];
-  wet.add(`${startRow},0`);
+  if (!(grid[startRow][startCol] & entryBit)) return wet;
+  const queue = [[startRow, startCol]];
+  wet.add(`${startRow},${startCol}`);
   while (queue.length) {
     const [r, c] = queue.shift();
     for (const dir of PIPE_DIRS) {
@@ -36,6 +37,10 @@ function wetCells(grid, startRow) {
   }
   return wet;
 }
+
+// Tiles joined to Out or to In, so part pay counts work from either end.
+const joinedTiles = ({ grid, startRow, endRow }) =>
+  new Set([...wetCells(grid, startRow), ...wetCells(grid, endRow, grid.length - 1, PIPE_E)]).size;
 
 const isRouted = (grid, startRow, endRow) =>
   wetCells(grid, startRow).has(`${endRow},${grid.length - 1}`) && Boolean(grid[endRow][grid.length - 1] & PIPE_E);
@@ -93,6 +98,7 @@ function makePipePuzzle(size) {
 console.assert(rotatePipe(PIPE_N | PIPE_E) === (PIPE_E | PIPE_S) && rotatePipe(PIPE_W) === PIPE_N, 'rotation is clockwise');
 console.assert(isRouted([[PIPE_W | PIPE_E]], 0, 0) && !isRouted([[PIPE_N | PIPE_S]], 0, 0), 'one-tile route check');
 console.assert(isRouted([[PIPE_W | PIPE_S, PIPE_N], [PIPE_N | PIPE_E, PIPE_W | PIPE_E]], 0, 1), 'two-by-two elbow route');
+console.assert(joinedTiles({ grid: [[PIPE_W | PIPE_E, PIPE_N | PIPE_S], [PIPE_N | PIPE_E, PIPE_W | PIPE_E]], startRow: 0, endRow: 1 }) === 3, 'joined tiles count from Out and from In');
 
 function pipeSvg(mask, wet) {
   const ends = { [PIPE_N]: [20, 0], [PIPE_E]: [40, 20], [PIPE_S]: [20, 40], [PIPE_W]: [0, 20] };
@@ -109,7 +115,7 @@ const Plumber = {
     'Water comes out at Out on the left and has to reach In on the right.',
     'Tap or click a pipe to turn it a quarter turn. Pipes with water in them turn blue.',
     'When the blue path joins Out to In, the job is fixed and a new grid appears.',
-    `Grids get bigger as you go, and bigger grids pay more ($${PLUMBER_PAY_PER_TILE} per tile). You're only paid for finished grids.`
+    `Grids get bigger as you go, and bigger grids pay more ($${PLUMBER_PAY_PER_TILE} per tile). If time runs out mid-grid, you're paid for each tile you joined to Out or In.`
   ],
   howToFrames: 8,
 
@@ -155,7 +161,7 @@ const Plumber = {
     let secondsLeft = Math.ceil(seconds); // Food & Shelter can make earned time fractional
     let solvedCount = 0;
     let earnings = 0;
-    let puzzle;
+    let puzzle, startJoined; // tiles already joined when the grid appeared, which don't earn part pay
 
     container.innerHTML = `
       <h2>Plumber: connect the pipes</h2>
@@ -167,6 +173,7 @@ const Plumber = {
 
     function nextPuzzle() {
       puzzle = makePipePuzzle(PLUMBER_GRID_SIZES[Math.min(solvedCount, PLUMBER_GRID_SIZES.length - 1)]);
+      startJoined = joinedTiles(puzzle);
       draw();
     }
 
@@ -217,7 +224,10 @@ const Plumber = {
     function finish() {
       clearInterval(timer);
       container.replaceChildren();
-      onDone({ earnings, summary: `You fixed ${solvedCount} ${solvedCount === 1 ? 'route' : 'routes'}.` });
+      const partTiles = Math.max(0, joinedTiles(puzzle) - startJoined);
+      earnings += partTiles * PLUMBER_PAY_PER_TILE;
+      const partNote = partTiles ? ` Part pay: ${partTiles} joined ${partTiles === 1 ? 'tile' : 'tiles'} on the last grid (+$${partTiles * PLUMBER_PAY_PER_TILE}).` : '';
+      onDone({ earnings, summary: `You fixed ${solvedCount} ${solvedCount === 1 ? 'route' : 'routes'}.${partNote}` });
     }
 
     part('time').textContent = secondsLeft;
