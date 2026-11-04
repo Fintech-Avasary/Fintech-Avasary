@@ -69,6 +69,45 @@ const vialColor = (vial) => `hsl(${(vial.charCodeAt(0) - 65) * 47 % 360} 55% 42%
 
 const Pharmacist = {
   name: 'Pharmacist',
+  howTo: [
+    'Each order asks for a goal vial. You start with vials A, B and C.',
+    'The recipe sheet shows which two vials mix into a new one, for example A + B = D.',
+    'Tap two of your vials to mix them. You keep both vials and get the new one too.',
+    'Some orders need a few mixes in a row, and one recipe on the sheet is a decoy you don\'t need.',
+    `Make the goal vial to fill the order. You earn $${PHARMACIST_PAY_PER_RECIPE} for each mix the order needs.`
+  ],
+  howToFrames: 8,
+
+  // How-to animation on a 160x120 canvas: tap A, tap B, drops fall and make D, and A and B stay.
+  drawHowTo(context, frame) {
+    function bottle(vial, x, y, filled, picked) {
+      context.fillStyle = filled ? vialColor(vial) : '#ffffff';
+      context.fillRect(x + 7, y, 10, 6); // neck
+      context.fillRect(x, y + 6, 24, 26); // body
+      context.strokeStyle = picked ? '#d9480f' : '#23302b';
+      context.lineWidth = picked ? 3 : 2;
+      context.strokeRect(x, y + 6, 24, 26);
+      context.fillStyle = filled ? '#ffffff' : '#23302b';
+      context.fillText(filled ? vial : '?', x + 12, y + 20);
+    }
+    context.fillStyle = '#f4f1ea';
+    context.fillRect(0, 0, 160, 120);
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.font = 'bold 12px system-ui, sans-serif';
+    context.fillStyle = '#23302b';
+    context.fillText('Recipe: A + B = D', 80, 10);
+    bottle('A', 20, 24, true, frame === 1 || frame === 2);
+    bottle('B', 116, 24, true, frame === 2);
+    if (frame === 3 || frame === 4) { // drops fall toward the new vial
+      const step = frame - 2; // 1 then 2
+      context.fillStyle = vialColor('A');
+      context.fillRect(46 + step * 10, 52 + step * 10, 6, 6);
+      context.fillStyle = vialColor('B');
+      context.fillRect(108 - step * 10, 52 + step * 10, 6, 6);
+    }
+    bottle('D', 68, 78, frame >= 5, false);
+  },
 
   // Shared job contract: play for the seconds earned, then report through onDone({ earnings, summary }).
   start(container, seconds, onDone) {

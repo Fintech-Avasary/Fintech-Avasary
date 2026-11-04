@@ -52,7 +52,7 @@ Plain HTML, CSS and JavaScript. There is no build step and nothing to install.
 | Path | Purpose |
 | --- | --- |
 | `index.html` | Entry point of the game: portals, game flow and money |
-| `jobs/` | One plain script per job, with `start(container, seconds, onDone)`. ES modules fail when `index.html` is opened by double-click, so don't use them. |
+| `jobs/` | One plain script per job, with `name`, `howTo` (instruction lines), `howToFrames` and `drawHowTo(context, frame)` (instruction animation) and `start(container, seconds, onDone)`. ES modules fail when `index.html` is opened by double-click, so don't use them. |
 | `docs/avasary_design_spec.md` | Design spec, the source of truth for all mechanics |
 | `docs/claude_code_game_request.md` | Request for the portals and the three-job lineup |
 | `logs/` | Session logs, one file per work session (see `logs/README.md`) |

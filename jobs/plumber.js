@@ -1,6 +1,6 @@
 // Plumber job (§8): rotate pipe tiles until water runs from the outpipe (left) to the inpipe (right).
 const PLUMBER_GRID_SIZES = [3, 4, 4, 5]; // later grids stay at the last size
-const PLUMBER_PAY_PER_TILE = 7; // §7.2: only finished routes pay; bigger grids pay more
+const PLUMBER_PAY_PER_TILE = 6; // §7.2: only finished routes pay; bigger grids pay more
 
 // Tile openings as a bitmask.
 const PIPE_N = 1, PIPE_E = 2, PIPE_S = 4, PIPE_W = 8;
@@ -105,6 +105,50 @@ function pipeSvg(mask, wet) {
 
 const Plumber = {
   name: 'Plumber',
+  howTo: [
+    'Water comes out at Out on the left and has to reach In on the right.',
+    'Tap or click a pipe to turn it a quarter turn. Pipes with water in them turn blue.',
+    'When the blue path joins Out to In, the job is fixed and a new grid appears.',
+    `Grids get bigger as you go, and bigger grids pay more ($${PLUMBER_PAY_PER_TILE} per tile). You're only paid for finished grids.`
+  ],
+  howToFrames: 8,
+
+  // How-to animation on a 160x120 canvas: tap the middle pipe, it turns, then water flows Out -> In.
+  drawHowTo(context, frame) {
+    const tile = 28, top = 44, left = 38, half = tile / 2; // leaves room for the Out and In labels
+    const turned = frame >= 2;
+    const masks = [PIPE_W | PIPE_E, turned ? PIPE_W | PIPE_E : PIPE_N | PIPE_S, PIPE_W | PIPE_E];
+    context.fillStyle = '#f4f1ea';
+    context.fillRect(0, 0, 160, 120);
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.font = 'bold 11px system-ui, sans-serif';
+    context.fillStyle = '#23302b';
+    context.fillText('Out →', 19, top + half);
+    context.fillText('→ In', 141, top + half);
+    masks.forEach((mask, i) => {
+      const x = left + i * tile;
+      context.fillStyle = '#ffffff';
+      context.fillRect(x + 1, top + 1, tile - 2, tile - 2);
+      context.fillStyle = frame >= 3 + i ? '#1c6fd1' : '#7a7f86'; // water reaches one tile per frame
+      context.fillRect(x + half - 4, top + half - 4, 8, 8); // square joint
+      if (mask & PIPE_N) context.fillRect(x + half - 4, top, 8, half);
+      if (mask & PIPE_S) context.fillRect(x + half - 4, top + half, 8, half);
+      if (mask & PIPE_W) context.fillRect(x, top + half - 4, half, 8);
+      if (mask & PIPE_E) context.fillRect(x + half, top + half - 4, half, 8);
+    });
+    if (frame === 1) { // the tap
+      context.strokeStyle = '#d9480f';
+      context.lineWidth = 3;
+      context.strokeRect(left + tile + 2, top + 2, tile - 4, tile - 4);
+      context.fillStyle = '#23302b';
+      context.fillText('tap!', 80, top + tile + 14);
+    }
+    if (frame >= 5) {
+      context.fillStyle = '#1f6f54';
+      context.fillText('Water\'s flowing!', 80, top + tile + 14);
+    }
+  },
 
   // Shared job contract: play for the seconds earned, then report through onDone({ earnings, summary }).
   start(container, seconds, onDone) {

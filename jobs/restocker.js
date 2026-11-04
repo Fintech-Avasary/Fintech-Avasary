@@ -47,11 +47,67 @@ function makeRestockList() {
 
 const shelfName = (spot) => `Aisle ${spot.aisle}, Shelf ${spot.shelf}`;
 
+const PLAYER_SPRITE_STEP = [...PLAYER_SPRITE.slice(0, 7), '..pppp..']; // legs together: second walking frame
+
+// 8x8 sprite centered in the tile at tile position (x, y). Also used by the city scenes in index.html.
+function drawResident(context, x, y, tile, sprite = PLAYER_SPRITE, colors = SPRITE_COLORS) {
+  const pixel = tile / 10;
+  sprite.forEach((row, sy) => [...row].forEach((key, sx) => {
+    if (!colors[key]) return;
+    context.fillStyle = colors[key];
+    context.fillRect(x * tile + (sx + 1) * pixel, y * tile + (sy + 1) * pixel, pixel, pixel);
+  }));
+}
+
+// How-to animation: walk from the door to Shelf B and stock it.
+const RESTOCK_DEMO_PATH = [[0, 5], [1, 5], [2, 5], [3, 5], [4, 5], [4, 4], [4, 3], [4, 2]];
+const RESTOCK_DEMO_HOLD = 4; // frames showing the stocked shelf
+
 console.assert(adjacentShelf(3, 2).aisle === 1 && adjacentShelf(4, 2).aisle === 2, 'walkway touches only its own aisle');
 console.assert(adjacentShelf(0, 0) === null && !isWalkable(2, 1) && !isWalkable(-1, 0), 'shelves and walls block the player');
 
 const Restocker = {
   name: 'Restocker',
+  howTo: [
+    'Your grocery list shows each item with its aisle and shelf, for example "Milk: Aisle 2, Shelf B".',
+    'Walk next to that shelf with the arrow keys or WASD (or the on-screen arrows).',
+    'Press E (or Stock) to put the item on the shelf. Stock items in list order, marked with →.',
+    'A wrong shelf earns nothing, so check the list before you stock.',
+    `When the list is done, a new list arrives. You earn $${RESTOCK_PAY_PER_ITEM} per item stocked.`
+  ],
+  howToFrames: RESTOCK_DEMO_PATH.length + RESTOCK_DEMO_HOLD,
+
+  // Draws one frame of the how-to animation on a 160x120 canvas (20px tiles, 8x6).
+  drawHowTo(context, frame) {
+    const tile = 20;
+    const [x, y] = RESTOCK_DEMO_PATH[Math.min(frame, RESTOCK_DEMO_PATH.length - 1)];
+    const stocked = frame >= RESTOCK_DEMO_PATH.length;
+    for (let ty = 0; ty < 6; ty++) {
+      for (let tx = 0; tx < 8; tx++) {
+        context.fillStyle = (tx + ty) % 2 ? '#ebe6d9' : '#f4f1ea';
+        context.fillRect(tx * tile, ty * tile, tile, tile);
+      }
+    }
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.font = 'bold 11px system-ui, sans-serif';
+    context.fillStyle = '#23302b';
+    context.fillText('Milk: Shelf B', 80, 10);
+    [...'ABC'].forEach((letter, i) => {
+      const isB = letter === 'B';
+      context.fillStyle = stocked && isB ? '#1f6f54' : '#8a6d4b';
+      context.fillRect(5 * tile + 1, (i + 1) * tile + 1, tile - 2, tile - 2);
+      context.fillStyle = '#ffffff';
+      context.fillText(stocked && isB ? '✓' : letter, 5.5 * tile, (i + 1.5) * tile);
+    });
+    if (x === 4 && y === 2) { // next to Shelf B: the orange outline means E will stock it
+      context.strokeStyle = '#d9480f';
+      context.lineWidth = 2;
+      context.strokeRect(5 * tile + 2, 2 * tile + 2, tile - 4, tile - 4);
+    }
+    const walking = frame < RESTOCK_DEMO_PATH.length - 1;
+    drawResident(context, x, y, tile, walking && frame % 2 ? PLAYER_SPRITE_STEP : PLAYER_SPRITE);
+  },
 
   // Shared job contract: play for the seconds earned, then report through onDone({ earnings, summary }).
   start(container, seconds, onDone) {
@@ -123,12 +179,7 @@ const Restocker = {
           });
         });
 
-        const pixel = STORE_TILE / 10; // 8x8 sprite centered in the tile
-        PLAYER_SPRITE.forEach((row, sy) => [...row].forEach((key, sx) => {
-          if (!SPRITE_COLORS[key]) return;
-          context.fillStyle = SPRITE_COLORS[key];
-          context.fillRect(player.x * STORE_TILE + (sx + 1) * pixel, player.y * STORE_TILE + (sy + 1) * pixel, pixel, pixel);
-        }));
+        drawResident(context, player.x, player.y, STORE_TILE);
       }
 
       function showChecklist() {

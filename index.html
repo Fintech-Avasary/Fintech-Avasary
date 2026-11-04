@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Avasary</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
   <style>
     :root {
       --bg: #f4f1ea;
@@ -76,6 +76,10 @@
     .restock-store { flex: 3 1 340px; min-width: 0; }
     .job-current { font-weight: 600; }
     .pipe-grid { display: grid; gap: 2px; margin: 12px 0; align-items: center; }
+    main:has(.howto-layout) { max-width: 760px; }
+    .howto-layout { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; } /* animation beside the steps, below on phones */
+    .howto-layout ul { flex: 1 1 260px; margin: 0; }
+    .howto-layout canvas { flex: 0 0 auto; width: 240px; max-width: 100%; margin: 0; }
     @media (max-width: 420px) { main { padding: 16px; } } /* phones: room for 44px Plumber tiles */
     .pipe-grid button { padding: 0; aspect-ratio: 1; background: #e9e4d8; border: 1px solid var(--line); border-radius: 4px; touch-action: manipulation; }
     .pipe-grid button svg { display: block; width: 100%; height: 100%; }
@@ -109,9 +113,14 @@
     }
     main { border: 4px solid var(--ink); border-top-width: 10px; border-radius: 0; box-shadow: 6px 6px 0 var(--ink); }
     main:not([data-portal]) { border-top-color: var(--ink); }
-    h1, h2, h3, legend, button, .portal-badge { font-family: 'Pixelify Sans', ui-monospace, monospace; letter-spacing: 0.02em; }
-    h1 { font-size: 1.75rem; }
-    h2 { font-size: 1.15rem; }
+    /* Press Start 2P: clear digits (Pixelify Sans made 5 hard to read). It runs very wide and has no bold, so sizes go down. */
+    h1, h2, h3, legend, button, .portal-badge { font-family: 'Press Start 2P', ui-monospace, monospace; font-weight: 400; }
+    h1 { font-size: 1.2rem; line-height: 1.5; }
+    h2 { font-size: 0.9rem; line-height: 1.5; }
+    h3, #job-area h3, .vial-sheet h3, .restock-list h3 { font-size: 0.75rem; }
+    legend { font-size: 0.75rem; }
+    button { font-size: 0.75rem; line-height: 1.6; }
+    .portal-badge { font-size: 0.65rem; }
     fieldset, input[type="text"], .vial-sheet, canvas { border: 3px solid var(--ink); border-radius: 0; }
     .vial-sheet { border-style: dashed; }
     button { border: 3px solid var(--ink); border-radius: 0; box-shadow: 3px 3px 0 var(--ink); }
@@ -161,6 +170,10 @@
           <label><input type="checkbox" name="jobs" value="pharmacist" checked> Pharmacist (vial recipes)</label>
           <p id="jobs-error" class="error" role="alert"></p>
         </fieldset>
+        <fieldset id="topics">
+          <legend>Question topics this Workday</legend>
+          <p id="topics-error" class="error" role="alert"></p>
+        </fieldset>
         <fieldset>
           <legend>Emergencies this Workday</legend>
           <label><input type="radio" name="emergency" value="off"> Off (never happens)</label>
@@ -187,6 +200,7 @@
     <section id="resident-waiting" hidden>
       <h1>Maple Street Block</h1>
       <p class="muted">Waiting room: the Workday starts when the Mayor is ready.</p>
+      <canvas id="waiting-scene" width="320" height="128" aria-hidden="true"></canvas>
 
       <h2>Residents here</h2>
       <ul>
@@ -258,6 +272,9 @@
     const QUESTION_GAP_SECONDS = 0; // §7.4 suggests ~5s; team decision 2026-11-03: no wait for now
     const JOB_SWAP_SECONDS = 15; // §7.4: travel time when switching to a different job than last round
     const JOBS = { restocker: Restocker, plumber: Plumber, pharmacist: Pharmacist };
+    const HOWTO_FRAME_MS = 500; // speed of the how-to animation
+    const SCENE_FRAME_MS = 250; // speed of the city scenes (waiting room, travel)
+    const REDUCE_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     const UPGRADE_COST = 40; // tuned so 1.2x time beats the cost within one round for a strong player
     const UPGRADE_MULTIPLIER = 1.2; // §7.3
@@ -267,7 +284,7 @@
     const ROUNDS = 2; // §15: the bank-or-buy choice sits between the two rounds
     const QUESTIONS_PER_ROUND = 3;
 
-    // §9: team-authored bank, tagged by topic so the Mayor can pick topics later.
+    // §9: team-authored bank, tagged by topic so the Mayor can pick topics.
     // Each Workday draws questions at random with no repeats, and answer order is shuffled.
     const QUESTION_BANK = [
       { topic: 'needs-wants', text: 'Which of these is a need?', answer: 'Rent', wrong: ['A concert ticket', 'A new phone case'] },
@@ -297,15 +314,23 @@
       { topic: 'earning', text: 'Which usually helps you earn more over time?', answer: 'Learning new skills', wrong: ['Spending your whole paycheck', 'Skipping work'] }
     ];
 
-    function drawQuestions() {
-      const picked = shuffled(QUESTION_BANK).slice(0, ROUNDS * QUESTIONS_PER_ROUND).map((q) => {
+    const TOPIC_NAMES = { 'needs-wants': 'Needs and wants', budgeting: 'Budgeting', saving: 'Saving', banking: 'Banking', credit: 'Credit', earning: 'Earning' };
+    const QUESTIONS_PER_WORKDAY = ROUNDS * QUESTIONS_PER_ROUND;
+    const questionsInTopics = (topics) => QUESTION_BANK.filter((q) => topics.includes(q.topic));
+
+    // §9: educators control which topics are active for a Workday.
+    function drawQuestions(topics) {
+      const picked = shuffled(questionsInTopics(topics)).slice(0, QUESTIONS_PER_WORKDAY).map((q) => {
         const answers = shuffled([q.answer, ...q.wrong]);
         return { text: q.text, answers, correct: answers.indexOf(q.answer) };
       });
       return Array.from({ length: ROUNDS }, (_, i) => picked.slice(i * QUESTIONS_PER_ROUND, (i + 1) * QUESTIONS_PER_ROUND));
     }
-    console.assert(QUESTION_BANK.length >= ROUNDS * QUESTIONS_PER_ROUND, 'question bank covers a Workday without repeats');
-    console.assert(drawQuestions().flat().every((q) => q.answers[q.correct] === QUESTION_BANK.find((b) => b.text === q.text).answer), 'correct index follows the shuffle');
+    const ALL_TOPICS = [...new Set(QUESTION_BANK.map((q) => q.topic))];
+    console.assert(QUESTION_BANK.length >= QUESTIONS_PER_WORKDAY, 'question bank covers a Workday without repeats');
+    console.assert(ALL_TOPICS.every((t) => TOPIC_NAMES[t]), 'every topic has a display name');
+    console.assert(drawQuestions(['budgeting']).flat().every((q) => QUESTION_BANK.find((b) => b.text === q.text).topic === 'budgeting'), 'only chosen topics are drawn');
+    console.assert(drawQuestions(ALL_TOPICS).flat().every((q) => q.answers[q.correct] === QUESTION_BANK.find((b) => b.text === q.text).answer), 'correct index follows the shuffle');
 
     const game = {
       emergencySetting: null, joined: false, availableJobs: [], lastJob: null,
@@ -342,7 +367,103 @@
     const SCREENS = ['portal-choice', 'mayor-portal', 'resident-join', 'resident-waiting', 'workday'];
     const PORTAL_LABELS = { mayor: 'Mayor portal (educator)', resident: 'Resident portal (student)' };
 
+    // ---- City scenes: decorative pixel street for the waiting room and job travel (§10 city, stubbed) ----
+    // 320x128 canvas: sky and buildings above y=80, sidewalk to y=104, road below. drawResident is in jobs/restocker.js.
+    let sceneTimer = null;
+    function stopScene() {
+      clearInterval(sceneTimer);
+      sceneTimer = null;
+    }
+    function playScene(canvas, drawFrame) {
+      stopScene();
+      const context = canvas.getContext('2d');
+      let frame = 0;
+      drawFrame(context, frame);
+      if (!REDUCE_MOTION) sceneTimer = setInterval(() => drawFrame(context, ++frame), SCENE_FRAME_MS);
+    }
+
+    function drawStreet(context, frame, buildings) {
+      context.fillStyle = '#bfe3f0';
+      context.fillRect(0, 0, 320, 80);
+      context.fillStyle = '#ffffff';
+      [[0, 14], [170, 30]].forEach(([start, y]) => { // blocky clouds drifting right
+        const x = (start + frame) % 360 - 40;
+        context.fillRect(x, y, 32, 8);
+        context.fillRect(x + 8, y - 6, 16, 6);
+      });
+      buildings.forEach(({ x, w, h, color, sign }) => {
+        const top = 80 - h;
+        context.fillStyle = '#23302b'; // roof
+        context.fillRect(x - 3, top - 6, w + 6, 6);
+        context.fillStyle = color;
+        context.fillRect(x, top, w, h);
+        context.fillStyle = '#fbe9a6'; // windows
+        for (let wy = top + (sign ? 18 : 6); wy < 64; wy += 14) { // windows start below a sign
+          for (let wx = x + 6; wx + 8 <= x + w - 4; wx += 14) context.fillRect(wx, wy, 8, 8);
+        }
+        context.fillStyle = '#23302b'; // door
+        context.fillRect(x + w / 2 - 5, 66, 10, 14);
+        if (sign) {
+          context.fillStyle = '#f4f1ea';
+          context.fillRect(x + 2, top + 2, w - 4, 12);
+          context.fillStyle = '#23302b';
+          context.font = 'bold 9px system-ui, sans-serif';
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.fillText(sign, x + w / 2, top + 8);
+        }
+      });
+      context.fillStyle = '#cfc8b8'; // sidewalk
+      context.fillRect(0, 80, 320, 24);
+      context.fillStyle = '#b9b19f';
+      for (let x = 0; x < 320; x += 16) context.fillRect(x, 80, 1, 24);
+      context.fillStyle = '#5b5f66'; // road
+      context.fillRect(0, 104, 320, 24);
+      context.fillStyle = '#f4f1ea';
+      for (let x = 4; x < 320; x += 32) context.fillRect(x, 115, 16, 2);
+    }
+
+    const RESIDENT_TILE = 20; // sprite is 16px tall, feet on the sidewalk
+    const RESIDENT_Y = 3.9;
+    const shirt = (b) => ({ ...SPRITE_COLORS, b });
+
+    // §10: Residents see each other's housing and where they are, nothing about money.
+    function drawWaitingRoom(context, frame) {
+      drawStreet(context, frame, [
+        { x: 12, w: 56, h: 40, color: '#c2703d' }, { x: 88, w: 60, h: 48, color: '#5d8aa8' },
+        { x: 168, w: 56, h: 36, color: '#8a9a5b' }, { x: 244, w: 64, h: 44, color: '#a85d7a' }
+      ]);
+      // Each Resident stands beside their own front door.
+      [['You', 58, '#2f3e8f'], ['', 138, '#a33b2c'], ['', 214, '#1f6f54'], ['', 296, '#7a4fa0']].forEach(([label, x, color], i) => {
+        const tapping = (frame + i * 3) % 8 < 2; // idle: each Resident shifts their feet now and then
+        drawResident(context, (x - 10) / RESIDENT_TILE, RESIDENT_Y, RESIDENT_TILE, tapping ? PLAYER_SPRITE_STEP : PLAYER_SPRITE, shirt(color));
+        if (label) { // light tag above the head
+          context.fillStyle = '#f4f1ea';
+          context.fillRect(x - 11, 64, 22, 11);
+          context.fillStyle = '#23302b';
+          context.font = 'bold 9px system-ui, sans-serif';
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.fillText(label, x, 70);
+        }
+      });
+    }
+
+    // §7.4: the job swap delay, shown as walking from the old job's building to the new one.
+    function drawTravel(context, frame, fromJob, toJob) {
+      drawStreet(context, frame, [
+        { x: 8, w: 72, h: 52, color: '#5d8aa8', sign: fromJob.name },
+        { x: 104, w: 44, h: 36, color: '#8a9a5b' }, { x: 168, w: 44, h: 40, color: '#c2703d' },
+        { x: 240, w: 72, h: 52, color: '#a85d7a', sign: toJob.name }
+      ]);
+      const progress = Math.min(1, (frame * SCENE_FRAME_MS) / (JOB_SWAP_SECONDS * 1000));
+      const x = 44 + progress * (276 - 44); // door to door
+      drawResident(context, (x - 10) / RESIDENT_TILE, RESIDENT_Y, RESIDENT_TILE,
+        progress < 1 && frame % 2 ? PLAYER_SPRITE_STEP : PLAYER_SPRITE);
+    }
+
     function showScreen(screen, portal) {
+      stopScene();
       SCREENS.forEach((id) => { el(id).hidden = id !== screen; });
       document.querySelector('main').dataset.portal = portal || '';
       el('portal-badge').hidden = !portal;
@@ -352,6 +473,7 @@
     function showResidentPortal() {
       // §4: a Resident types the Block code once, then goes straight to the waiting room.
       showScreen(game.joined ? 'resident-waiting' : 'resident-join', 'resident');
+      if (game.joined) playScene(el('waiting-scene'), drawWaitingRoom);
     }
 
     // §7.3: Food & Shelter multiplies the seconds each correct answer pays on a time-based job.
@@ -462,35 +584,67 @@
       el('time-line').hidden = true;
       el('feedback').textContent = '';
       el('results').hidden = true;
+      game.roundWork = job && seconds > 0 ? `${job.name}, ${seconds}s` : 'no job'; // playtest: shown in the summary
       if (!job || seconds <= 0) { // §7.1: the energy gate
         finishJob({ earnings: 0, summary: 'You didn\'t work this round.' });
         return;
       }
       const swapping = game.lastJob && job !== game.lastJob;
+      const fromJob = game.lastJob;
       game.lastJob = job;
       if (!swapping) {
-        job.start(el('job-area'), seconds, finishJob);
+        showHowTo(job, seconds);
         return;
       }
       // §7.4: switching jobs costs travel time, which doesn't come out of work time.
       let secondsLeft = JOB_SWAP_SECONDS;
       el('countdown').textContent = `Traveling to your ${job.name} job: ${secondsLeft}...`;
+      el('job-area').innerHTML = '<canvas width="320" height="128" aria-hidden="true"></canvas>';
+      playScene(el('job-area').firstChild, (context, frame) => drawTravel(context, frame, fromJob, job));
       const timer = setInterval(() => {
         secondsLeft -= 1;
         el('countdown').textContent = `Traveling to your ${job.name} job: ${secondsLeft}...`;
         if (secondsLeft === 0) {
           clearInterval(timer);
           el('countdown').textContent = '';
-          job.start(el('job-area'), seconds, finishJob);
+          stopScene();
+          showHowTo(job, seconds);
         }
       }, 1000);
+    }
+
+    // Instructions before every job; work time only starts counting on "Start work".
+    function showHowTo(job, seconds) {
+      const area = el('job-area');
+      area.innerHTML = `<h2>How to work as ${job.name}</h2>
+        <div class="howto-layout"><ul></ul>
+          <canvas width="160" height="120" role="img" aria-label="Animated example of the ${job.name} job"></canvas></div>
+        <p class="muted">You have ${seconds} seconds of work time. The clock starts when you press Start work.</p>
+        <button type="button">Start work</button>`;
+      area.querySelector('ul').replaceChildren(...job.howTo.map((line) => Object.assign(document.createElement('li'), { textContent: line })));
+
+      // Looping pixel animation of the job's main move; reduced motion shows the finished frame only.
+      const context = area.querySelector('canvas').getContext('2d');
+      let frame = 0;
+      job.drawHowTo(context, REDUCE_MOTION ? job.howToFrames - 1 : 0);
+      const timer = REDUCE_MOTION ? null : setInterval(() => {
+        frame = (frame + 1) % job.howToFrames;
+        job.drawHowTo(context, frame);
+      }, HOWTO_FRAME_MS);
+
+      const button = area.querySelector('button');
+      button.addEventListener('click', () => {
+        clearInterval(timer);
+        job.start(area, seconds, finishJob);
+      });
+      button.focus();
     }
 
     // §7.2: every job pays its performance-based earnings into the same wallet.
     function finishJob({ earnings, summary }) {
       game.wallet += earnings;
       game.totalEarned += earnings;
-      game.earnedByRound.push(earnings);
+      game.earnedByRound.push({ earnings, work: game.roundWork });
       showMoney();
       el('payout-text').textContent = `${summary} You earned $${earnings}.`;
       el('payout').hidden = false;
@@ -563,7 +717,7 @@
       el('workday-title').textContent = 'Workday summary';
       el('payout').hidden = true;
       const rows = [
-        ...game.earnedByRound.map((amount, i) => [`Earned in Round ${i + 1}`, `$${amount}`]),
+        ...game.earnedByRound.map(({ earnings, work }, i) => [`Earned in Round ${i + 1} (${work})`, `$${earnings}`]),
         ['Total earned', `$${game.totalEarned}`, 'total'],
         ['Spent on Food & Shelter', minusDollars(game.spentOnUpgrade)],
         ['Paid for the emergency', minusDollars(game.paidForEmergency)],
@@ -594,6 +748,13 @@
     }
 
     el('block-code-display').textContent = BLOCK_CODE;
+    el('topics-error').before(...ALL_TOPICS.map((topic) => {
+      const label = document.createElement('label');
+      label.innerHTML = '<input type="checkbox" name="topics" checked> ';
+      label.firstChild.value = topic;
+      label.append(`${TOPIC_NAMES[topic]} (${questionsInTopics([topic]).length} questions)`);
+      return label;
+    }));
     el('choose-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
     el('choose-resident').addEventListener('click', showResidentPortal);
     el('demo-to-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
@@ -625,8 +786,15 @@
         return;
       }
       el('jobs-error').textContent = '';
+      const topics = form.getAll('topics');
+      const available = questionsInTopics(topics).length;
+      if (available < QUESTIONS_PER_WORKDAY) { // no repeats in a Workday (§9)
+        el('topics-error').textContent = `These topics have ${available} questions. A Workday needs ${QUESTIONS_PER_WORKDAY}, so pick more topics.`;
+        return;
+      }
+      el('topics-error').textContent = '';
       game.emergencySetting = form.get('emergency');
-      game.questions = drawQuestions();
+      game.questions = drawQuestions(topics);
       showScreen('workday', 'resident');
       startRound();
     });
