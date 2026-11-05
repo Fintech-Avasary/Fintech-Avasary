@@ -1,6 +1,9 @@
 // Plumber job (§8): rotate pipe tiles until water runs from the outpipe (left) to the inpipe (right).
 const PLUMBER_GRID_SIZES = [3, 4, 4, 5]; // later grids stay at the last size
 const PLUMBER_PAY_PER_TILE = 6; // §7.2: a finished grid pays every tile; bigger grids pay more
+// Team decision 2026-11-05: 30% easier. Each tile is scrambled with this chance, so about 30% fewer
+// pipes start turned wrong than when every tile was scrambled.
+const PLUMBER_SCRAMBLE_SHARE = 0.7;
 // Part pay at the whistle: each tile joined to Out or In pays the same rate, so extra seconds (§7.3) always count.
 
 // Tile openings as a bitmask.
@@ -89,6 +92,7 @@ function makePipePuzzle(size) {
   console.assert(isRouted(grid, startRow, endRow), 'generated puzzle has a solution');
   do { // scramble until the route is broken, so there's always work to do
     grid.forEach((row) => row.forEach((_, c) => {
+      if (Math.random() >= PLUMBER_SCRAMBLE_SHARE) return; // left as solved
       for (let turns = randomInt(4); turns > 0; turns--) row[c] = rotatePipe(row[c]);
     }));
   } while (isRouted(grid, startRow, endRow));
@@ -100,9 +104,12 @@ console.assert(isRouted([[PIPE_W | PIPE_E]], 0, 0) && !isRouted([[PIPE_N | PIPE_
 console.assert(isRouted([[PIPE_W | PIPE_S, PIPE_N], [PIPE_N | PIPE_E, PIPE_W | PIPE_E]], 0, 1), 'two-by-two elbow route');
 console.assert(joinedTiles({ grid: [[PIPE_W | PIPE_E, PIPE_N | PIPE_S], [PIPE_N | PIPE_E, PIPE_W | PIPE_E]], startRow: 0, endRow: 1 }) === 3, 'joined tiles count from Out and from In');
 
-function pipeSvg(mask, wet) {
+// Blue: water from Out. Green: joined to In. Both earn part pay, so the player can see it.
+const PIPE_COLORS = { out: '#1c6fd1', in: '#1f6f54', none: '#7a7f86' };
+
+function pipeSvg(mask, joinedTo) {
   const ends = { [PIPE_N]: [20, 0], [PIPE_E]: [40, 20], [PIPE_S]: [20, 40], [PIPE_W]: [0, 20] };
-  const color = wet ? '#1c6fd1' : '#7a7f86';
+  const color = PIPE_COLORS[joinedTo];
   const lines = PIPE_DIRS.filter((d) => mask & d.bit)
     .map((d) => `<line x1="20" y1="20" x2="${ends[d.bit][0]}" y2="${ends[d.bit][1]}"/>`).join('');
   return `<svg viewBox="0 0 40 40" aria-hidden="true" shape-rendering="crispEdges"><g stroke="${color}" stroke-width="12">${lines}</g>`
@@ -113,7 +120,7 @@ const Plumber = {
   name: 'Plumber',
   howTo: [
     'Water comes out at Out on the left and has to reach In on the right.',
-    'Tap or click a pipe to turn it a quarter turn. Pipes with water in them turn blue.',
+    'Tap or click a pipe to turn it a quarter turn. Pipes with water from Out turn blue, and pipes joined to In turn green.',
     'When the blue path joins Out to In, the job is fixed and a new grid appears.',
     `Grids get bigger as you go, and bigger grids pay more ($${PLUMBER_PAY_PER_TILE} per tile). If time runs out mid-grid, you're paid for each tile you joined to Out or In.`
   ],
@@ -180,6 +187,7 @@ const Plumber = {
     function draw() {
       const { size, startRow, endRow, grid } = puzzle;
       const wet = wetCells(grid, startRow);
+      const toIn = wetCells(grid, endRow, size - 1, PIPE_E);
       const gridEl = part('grid');
       gridEl.style.gridTemplateColumns = `1.75rem repeat(${size}, 1fr) 1.75rem`; // narrow end labels keep 5x5 tiles >= 44px at 360px
       const cells = [];
@@ -188,10 +196,12 @@ const Plumber = {
         for (let c = 0; c < size; c++) {
           const button = document.createElement('button');
           button.type = 'button';
-          const isWet = wet.has(`${r},${c}`);
+          const key = `${r},${c}`;
+          const joinedTo = wet.has(key) ? 'out' : toIn.has(key) ? 'in' : 'none';
           const opens = PIPE_DIRS.filter((d) => grid[r][c] & d.bit).map((d) => d.name).join(' and ');
-          button.setAttribute('aria-label', `Row ${r + 1}, column ${c + 1}: opens ${opens}${isWet ? ', has water' : ''}`);
-          button.innerHTML = pipeSvg(grid[r][c], isWet);
+          const state = { out: ', has water', in: ', joined to In', none: '' }[joinedTo];
+          button.setAttribute('aria-label', `Row ${r + 1}, column ${c + 1}: opens ${opens}${state}`);
+          button.innerHTML = pipeSvg(grid[r][c], joinedTo);
           button.addEventListener('click', () => turn(r, c));
           cells.push(button);
         }

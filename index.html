@@ -102,6 +102,9 @@
     .answer-right { color: var(--accent); }
     .answer-wrong { color: var(--error); }
     .portal-badge { margin-bottom: 8px; font-size: 0.875rem; font-weight: 600; }
+    /* Savings stands out on payday so first-timers don't skip it (rubric: ease of use). */
+    .savings-box { background: #e3f1ea; border-color: var(--accent); }
+    .savings-box legend { background: var(--accent); color: #ffffff; padding: 2px 8px; }
     main[data-portal="mayor"] .portal-badge { color: var(--mayor); }
     main[data-portal="resident"] .portal-badge { color: var(--accent); }
 
@@ -214,7 +217,7 @@
 
     <section id="workday" hidden>
       <h1 id="workday-title"></h1>
-      <p>Wallet: <strong>$<span id="wallet">0</span></strong> &middot; Bank: <strong>$<span id="bank">0</span></strong></p>
+      <p>Wallet: <strong>$<span id="wallet">0</span></strong> &middot; Savings account: <strong>$<span id="bank">0</span></strong></p>
       <p id="time-line">Work time earned: <strong id="time-earned">0</strong> seconds</p>
 
       <div id="question-area">
@@ -237,8 +240,19 @@
           <div id="money-choice" hidden>
             <h2>What will you do with your wallet money?</h2>
             <label><input type="checkbox" id="buy-upgrade"> <span id="buy-upgrade-text"></span></label>
-            <label for="bank-amount">Amount to put in the bank ($<span id="bank-max"></span> max)</label>
-            <input type="number" id="bank-amount" min="0" step="1" inputmode="numeric">
+            <div id="want-shop" hidden>
+              <h2>The shop</h2>
+              <p class="muted">Wants are paid from your wallet only. Your savings account can't pay for them.</p>
+              <div id="want-list"></div>
+            </div>
+            <fieldset class="savings-box">
+              <legend>Save for later</legend>
+              <p class="muted">Money in your savings account is safe if you lose your wallet, and it grows every 3 Workdays.</p>
+              <label for="bank-amount">Dollars to put in your savings account ($<span id="bank-max"></span> max)</label>
+              <input type="number" id="bank-amount" min="0" step="1" inputmode="numeric">
+              <label for="save-percent">Or save a percent of it (remembered for next payday)</label>
+              <input type="number" id="save-percent" min="0" max="100" step="any" inputmode="decimal" placeholder="%">
+            </fieldset>
             <p id="money-plan" class="muted" aria-live="polite"></p>
             <button type="button" id="money-done"></button>
           </div>
@@ -246,10 +260,11 @@
         </div>
         <div id="emergency" hidden>
           <p id="emergency-text"></p>
+          <p id="fee-note" class="muted"></p>
           <fieldset id="pay-order" hidden>
             <legend>Pay from</legend>
-            <label><input type="radio" name="pay-order" value="wallet" checked> Wallet first, then bank</label>
-            <label><input type="radio" name="pay-order" value="bank"> Bank first, then wallet</label>
+            <label><input type="radio" name="pay-order" value="wallet" checked> Wallet first, then savings account (fee only if savings are used)</label>
+            <label><input type="radio" name="pay-order" value="bank"> Savings account first, then wallet (fee)</label>
           </fieldset>
           <button type="button" id="pay-emergency"></button>
         </div>
@@ -259,6 +274,7 @@
             <tbody id="money-table"></tbody>
           </table>
           <ul id="summary-list"></ul>
+          <button type="button" id="next-workday">Back to the waiting room</button>
         </div>
       </div>
 
@@ -281,13 +297,35 @@
 
     const UPGRADE_COST = 40; // tuned so 1.2x time beats the cost within one round for a strong player
     const UPGRADE_MULTIPLIER = 1.2; // §7.3
-    // §12: unplanned cost, random each Workday. Top end is about one strong round (~$450 in the 11-03 playtest).
-    const EMERGENCY_COST_MIN = 150, EMERGENCY_COST_MAX = 400, EMERGENCY_COST_STEP = 10;
-    const randomEmergencyCost = (roll) =>
-      EMERGENCY_COST_MIN + Math.floor(roll * ((EMERGENCY_COST_MAX - EMERGENCY_COST_MIN) / EMERGENCY_COST_STEP + 1)) * EMERGENCY_COST_STEP;
-    console.assert(randomEmergencyCost(0) === 150 && randomEmergencyCost(0.9999) === 400 && randomEmergencyCost(0.5) % 10 === 0,
-      'emergency cost spans $150-$400 in $10 steps');
+    // §12: one unplanned bad-luck event per Workday, picked at random, each with its own cost range (team decision 2026-11-05).
+    // Small costs are everyday asks; big ones top out near one strong round (~$450 in the 11-03 playtest).
+    // walletOnly: a lost wallet takes the cash you carry and can never touch the savings account.
+    const BAD_LUCK_EVENTS = [
+      { name: 'Popcorn money', min: 10, max: 20, step: 5, text: (cost) => `Your little sibling asks you for $${cost} to buy some popcorn.` },
+      { name: 'Grandma\'s gift', min: 40, max: 100, step: 10, text: (cost) => `It's your grandma's birthday. You buy her a gift for $${cost}.` },
+      { name: 'Bike repair', min: 150, max: 300, step: 10, text: (cost) => `Your bike broke down and you need it for work. The repair costs $${cost}.` },
+      { name: 'Vet bill', min: 200, max: 400, step: 10, text: (cost) => `Your dog fell down the stairs while playing and broke a tooth. The vet bill is $${cost}.` },
+      { name: 'Lost wallet', walletOnly: true, text: (cost) => `You lost your wallet! The $${cost} of cash in it is gone. Money in your savings account is safe.` }
+    ];
+    const randomCost = ({ min, max, step }, roll) => min + Math.floor(roll * ((max - min) / step + 1)) * step;
+    console.assert(randomCost(BAD_LUCK_EVENTS[3], 0) === 200 && randomCost(BAD_LUCK_EVENTS[3], 0.9999) === 400
+      && randomCost(BAD_LUCK_EVENTS[0], 0.5) % 5 === 0, 'event cost spans its range in steps');
     const EMERGENCY_SOMETIMES_CHANCE = 0.5;
+    const SAVINGS_WITHDRAWAL_FEE = 10; // team decision 2026-11-05: the cost of pulling savings out for a bill
+
+    // Want shop after Round 2 payday: wallet money only (team decision 2026-11-05). §7.2: realistic price order.
+    const WANTS = [
+      { name: 'Sneakers', cost: 80 },
+      { name: 'Headphones', cost: 200 },
+      { name: 'Game console', cost: 400 }
+    ];
+
+    // Team decision 2026-11-05 (overrides "interest-free" in §7.2): the savings account grows
+    // at the end of every 3rd Workday. A Workday is one 2-round cycle.
+    const SAVINGS_INTEREST_RATE = 0.10;
+    const WORKDAYS_PER_INTEREST = 3;
+    const interestOn = (savings) => Math.floor(savings * SAVINGS_INTEREST_RATE); // whole dollars, rounded down
+    console.assert(interestOn(250) === 25 && interestOn(19) === 1 && interestOn(0) === 0, '10% interest in whole dollars');
 
     const ROUNDS = 2; // §15: the bank-or-buy choice sits between the two rounds
     const QUESTIONS_PER_ROUND = 3;
@@ -298,7 +336,6 @@
       { topic: 'needs-wants', text: 'Which of these is a need?', answer: 'Rent', wrong: ['A concert ticket', 'A new phone case'] },
       { topic: 'needs-wants', text: 'Which of these is a want?', answer: 'Designer sneakers', wrong: ['Groceries', 'The electric bill'] },
       { topic: 'needs-wants', text: 'You have $20 left after bills. Which choice puts needs first?', answer: 'Buying food for the week', wrong: ['A new video game', 'Movie tickets for friends'] },
-      { topic: 'needs-wants', text: 'Why do needs come before wants in a budget?', answer: 'Needs keep you safe and healthy', wrong: ['Wants always cost more', 'Stores make you buy needs first'] },
       { topic: 'budgeting', text: 'What is a budget?', answer: 'A plan for how you will use your money', wrong: ['A type of bank account', 'A loan from a store'] },
       { topic: 'budgeting', text: 'You earn $100 and spend $120. What happened?', answer: 'You spent more than you earned', wrong: ['You saved $20', 'You broke even'] },
       { topic: 'budgeting', text: 'Which expense usually costs about the same every month?', answer: 'Rent', wrong: ['Eating out', 'Birthday gifts'] },
@@ -340,11 +377,20 @@
     console.assert(drawQuestions(['budgeting']).flat().every((q) => QUESTION_BANK.find((b) => b.text === q.text).topic === 'budgeting'), 'only chosen topics are drawn');
     console.assert(drawQuestions(ALL_TOPICS).flat().every((q) => q.answers[q.correct] === QUESTION_BANK.find((b) => b.text === q.text).answer), 'correct index follows the shuffle');
 
+    // §3.2: wallet, savings and upgrades carry over between Workdays (in memory only, no persistence yet).
     const game = {
-      emergencySetting: null, joined: false, availableJobs: [], lastJob: null,
-      round: 0, questions: [], questionIndex: 0, workSeconds: 0, foodShelterMultiplier: 1,
-      wallet: 0, bank: 0, totalEarned: 0, earnedByRound: [], spentOnUpgrade: 0, paidForEmergency: 0, waived: 0, choiceSummary: 'You had no money to bank or spend after Round 1.', emergencySummary: 'No emergency happened this Workday.'
+      emergencySetting: null, joined: false, availableJobs: [], foodShelterMultiplier: 1,
+      wallet: 0, bank: 0, workday: 0
     };
+    // Everything that starts fresh each Workday.
+    function resetWorkday() {
+      Object.assign(game, {
+        workday: game.workday + 1, lastJob: null, round: 0, questions: [], questionIndex: 0, workSeconds: 0,
+        startWallet: game.wallet, startBank: game.bank,
+        totalEarned: 0, earnedByRound: [], spentOnUpgrade: 0, spentOnWants: 0, paidForEmergency: 0, withdrawalFee: 0, waived: 0, interest: 0, emergency: null,
+        choices: [], emergencySummary: 'No bad luck this Workday.'
+      });
+    }
     const el = (id) => document.getElementById(id);
 
     // Team decision 2026-10-30: the Mayor picks off, sometimes or always (overrides §12).
@@ -354,12 +400,17 @@
 
     // Team decision 2026-10-30: wallet then bank, or bank then wallet by choice (overrides §11.3, §12).
     // Credit is off in the demo, so whatever can't be paid is waived and balances never go negative.
-    function payCharge(wallet, bank, charge, bankFirst) {
-      const fromFirst = Math.min(charge, bankFirst ? bank : wallet);
-      const fromSecond = Math.min(charge - fromFirst, bankFirst ? wallet : bank);
+    // Team decision 2026-11-05: taking money out of savings for a bill costs a flat fee, also paid from savings.
+    // Savings that can't cover more than the fee aren't touched, since nothing would reach the bill.
+    function payCharge(wallet, bank, charge, bankFirst, fee = 0) {
+      const usable = bank > fee ? bank - fee : 0;
+      const fromFirst = Math.min(charge, bankFirst ? usable : wallet);
+      const fromSecond = Math.min(charge - fromFirst, bankFirst ? wallet : usable);
+      const fromBank = bankFirst ? fromFirst : fromSecond;
       return {
         fromWallet: bankFirst ? fromSecond : fromFirst,
-        fromBank: bankFirst ? fromFirst : fromSecond,
+        fromBank,
+        fee: fromBank > 0 ? fee : 0,
         waived: charge - fromFirst - fromSecond
       };
     }
@@ -370,6 +421,10 @@
     console.assert(sameCharge(payCharge(100, 100, 80, true), 0, 80, 0), 'bank pays first by choice');
     console.assert(sameCharge(payCharge(30, 20, 80, false), 30, 20, 30), 'overflow moves to the other balance, the rest is waived');
     console.assert(sameCharge(payCharge(0, 0, 80, true), 0, 0, 80), 'nothing to pay with means fully waived');
+    console.assert(payCharge(100, 100, 80, false, 10).fee === 0, 'no fee when the wallet covers it');
+    console.assert(sameCharge(payCharge(0, 200, 80, false, 10), 0, 80, 0) && payCharge(0, 200, 80, false, 10).fee === 10, 'fee when savings pay');
+    console.assert(sameCharge(payCharge(30, 50, 80, false, 10), 30, 40, 10), 'fee comes out of savings before the bill');
+    console.assert(sameCharge(payCharge(0, 10, 80, false, 10), 0, 0, 80) && payCharge(0, 10, 80, false, 10).fee === 0, 'savings at or under the fee stay put');
     console.assert(emergencyHappens('always', 0.99) && !emergencyHappens('off', 0) && emergencyHappens('sometimes', 0.49) && !emergencyHappens('sometimes', 0.5), 'Mayor emergency setting');
 
     const SCREENS = ['portal-choice', 'mayor-portal', 'resident-join', 'resident-waiting', 'workday'];
@@ -499,7 +554,7 @@
       game.round += 1;
       game.questionIndex = 0;
       game.workSeconds = 0;
-      el('workday-title').textContent = `Round ${game.round}`;
+      el('workday-title').textContent = `Workday ${game.workday}, Round ${game.round}`;
       el('time-earned').textContent = 0;
       el('payout').hidden = true;
       el('time-line').hidden = false;
@@ -657,26 +712,43 @@
       el('payout-text').textContent = `${summary} You earned $${earnings}.`;
       el('payout').hidden = false;
 
-      // §15: the bank-or-spend choice sits between the rounds, so an upgrade pays off before the emergency.
+      // §15: the save-or-spend choice comes after every round, so an upgrade pays off before the emergency.
+      // After the last round it also has the want shop.
       const lastRound = game.round === ROUNDS;
-      const canChoose = !lastRound && game.wallet > 0;
-      el('money-choice').hidden = !canChoose;
-      el('continue').hidden = canChoose;
+      const hasMoney = game.wallet > 0;
+      el('money-choice').hidden = !hasMoney;
+      el('want-shop').hidden = !lastRound;
+      el('continue').hidden = hasMoney;
       el('continue').textContent = lastRound ? 'Finish the Workday' : `Start Round ${game.round + 1}`;
-      if (canChoose) {
+      if (!hasMoney) game.choices.push(`You had no money to save or spend after Round ${game.round}.`);
+      if (hasMoney) {
+        const owned = game.foodShelterMultiplier > 1; // bought on an earlier Workday
         el('buy-upgrade').checked = false;
-        el('buy-upgrade').disabled = game.wallet < UPGRADE_COST;
-        el('buy-upgrade-text').textContent = game.wallet < UPGRADE_COST
-          ? `Food & Shelter costs $${UPGRADE_COST}: not enough money`
+        el('buy-upgrade').disabled = owned || game.wallet < UPGRADE_COST;
+        el('buy-upgrade-text').textContent = owned ? 'You already have Food & Shelter.'
+          : game.wallet < UPGRADE_COST ? `Food & Shelter costs $${UPGRADE_COST}: not enough money`
           : `Buy Food & Shelter for $${UPGRADE_COST}: ${UPGRADE_MULTIPLIER}x work time per correct answer`;
         el('bank-amount').value = 0;
-        el('money-done').textContent = `Start Round ${game.round + 1}`;
+        el('save-percent').value = loadSavePercent();
+        // Want shop: any mix the wallet can cover. Only built after the last round, so chosenWants() is empty before it.
+        el('want-list').replaceChildren(...(lastRound ? WANTS : []).map((want, i) => {
+          const label = document.createElement('label');
+          label.innerHTML = '<input type="checkbox" name="wants"> ';
+          label.firstChild.value = i;
+          label.append(`${want.name}: $${want.cost}`);
+          return label;
+        }));
+        el('money-done').textContent = lastRound ? 'Finish the Workday' : `Start Round ${game.round + 1}`;
         updateMoneyPlan();
       }
     }
 
-    // The most a Resident can bank right now: the wallet, less the upgrade if it's ticked.
-    const bankMax = () => game.wallet - (el('buy-upgrade').checked ? UPGRADE_COST : 0);
+    const chosenWants = () => [...document.querySelectorAll('input[name="wants"]:checked')].map((box) => WANTS[box.value]);
+    const wantsCost = () => chosenWants().reduce((sum, want) => sum + want.cost, 0);
+    const upgradeCost = () => (el('buy-upgrade').checked ? UPGRADE_COST : 0);
+
+    // The most a Resident can save right now: the wallet, less the upgrade and wants they ticked.
+    const bankMax = () => game.wallet - upgradeCost() - wantsCost();
 
     // §11.1: deposits have no limits, so any whole amount up to the wallet is allowed.
     function clampDeposit(value, max) {
@@ -686,74 +758,151 @@
     console.assert(clampDeposit('25', 60) === 25 && clampDeposit('90', 60) === 60 && clampDeposit('-5', 60) === 0
       && clampDeposit('', 60) === 0 && clampDeposit('abc', 60) === 0 && clampDeposit('12.7', 60) === 12, 'deposit is a whole amount from 0 to the max');
 
+    // A percent (0-100, decimals allowed) of what's left to save; '' means the student typed dollars instead.
+    function clampPercent(value) {
+      if (String(value).trim() === '') return '';
+      const percent = Number(value);
+      return Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : '';
+    }
+    const percentOf = (max, percent) => Math.floor(max * percent / 100); // whole dollars, rounded down
+    console.assert(clampPercent('25') === 25 && clampPercent('150') === 100 && clampPercent('-3') === 0 && clampPercent('') === ''
+      && clampPercent('abc') === '' && percentOf(360, 12.5) === 45, 'save percent is 0-100 and pays whole dollars');
+
+    // The saving percent is remembered in this browser between paydays and reloads. Storage can be blocked, so it's optional.
+    const SAVE_PERCENT_KEY = 'avasary.savePercent';
+    function loadSavePercent() {
+      try { return clampPercent(localStorage.getItem(SAVE_PERCENT_KEY) ?? ''); } catch { return ''; }
+    }
+    function storeSavePercent(percent) {
+      try {
+        if (percent === '') localStorage.removeItem(SAVE_PERCENT_KEY);
+        else localStorage.setItem(SAVE_PERCENT_KEY, percent);
+      } catch { /* private window or blocked storage: just don't remember */ }
+    }
+
     function updateMoneyPlan() {
+      // Grey out anything that no longer fits in the wallet next to what's already ticked.
+      const upgrade = el('buy-upgrade');
+      upgrade.disabled = game.foodShelterMultiplier > 1 || (!upgrade.checked && UPGRADE_COST > game.wallet - wantsCost());
+      document.querySelectorAll('input[name="wants"]').forEach((box) => {
+        box.disabled = !box.checked && WANTS[box.value].cost > bankMax();
+      });
       const max = bankMax();
+      const percent = clampPercent(el('save-percent').value);
+      if (percent !== '') el('bank-amount').value = percentOf(max, percent); // the percent fills in the dollar box
       const deposit = clampDeposit(el('bank-amount').value, max);
       el('bank-max').textContent = max;
       el('bank-amount').max = max;
-      el('money-plan').textContent = `Bank $${deposit}, keep $${max - deposit} in your wallet.`;
+      const spend = upgradeCost() + wantsCost();
+      el('money-plan').textContent = `${spend ? `Spend $${spend}, save` : 'Save'} $${deposit}, keep $${max - deposit} in your wallet.`;
     }
 
-    // §15: bank, buy, or both. The upgrade comes out first, then any amount of the rest goes to the bank.
+    // §15: save, buy, or both. Purchases come out first, then any amount of the rest goes to savings.
     function confirmMoneyChoice() {
       const buy = el('buy-upgrade').checked;
+      const wants = chosenWants();
       const deposit = clampDeposit(el('bank-amount').value, bankMax());
+      storeSavePercent(clampPercent(el('save-percent').value));
       if (buy) {
         game.wallet -= UPGRADE_COST;
         game.spentOnUpgrade += UPGRADE_COST;
         game.foodShelterMultiplier = UPGRADE_MULTIPLIER;
       }
-      game.wallet -= deposit;
+      const wantsSpend = wantsCost();
+      game.wallet -= wantsSpend + deposit;
+      game.spentOnWants += wantsSpend;
       game.bank += deposit;
-      const did = [buy && `bought Food & Shelter for $${UPGRADE_COST}`, `banked $${deposit}`].filter(Boolean).join(', ');
-      game.choiceSummary = `After Round 1 you ${did} and kept $${game.wallet} in your wallet.`;
+      const did = [
+        buy && `bought Food & Shelter for $${UPGRADE_COST}`,
+        wants.length && `bought ${wants.map((want) => want.name.toLowerCase()).join(' and ')} for $${wantsSpend}`,
+        `put $${deposit} in your savings account`
+      ].filter(Boolean).join(', ');
+      game.choices.push(`After Round ${game.round} you ${did} and kept $${game.wallet} in your wallet.`);
       showMoney();
-      startRound();
+      if (game.round < ROUNDS) startRound();
+      else endWorkday();
     }
 
     function continueWorkday() {
       if (game.round < ROUNDS) startRound();
-      else if (emergencyHappens(game.emergencySetting, Math.random())) showEmergency();
-      else showSummary();
+      else endWorkday();
+    }
+
+    function endWorkday() {
+      if (emergencyHappens(game.emergencySetting, Math.random())) showEmergency();
+      else finishWorkday();
     }
 
     function showEmergency() {
-      el('workday-title').textContent = 'Emergency!';
+      el('workday-title').textContent = 'Bad luck!';
       el('payout').hidden = true;
-      game.emergencyCost = randomEmergencyCost(Math.random());
-      el('emergency-text').textContent = `Your bike broke down and you need it for work. The repair costs $${game.emergencyCost}, and you can't skip it.`;
-      el('pay-order').hidden = !(game.wallet > 0 && game.bank > 0); // only a choice when both can pay
-      el('pay-emergency').textContent = game.wallet + game.bank > 0 ? 'Pay the bill' : 'Continue';
+      const event = BAD_LUCK_EVENTS[Math.floor(Math.random() * BAD_LUCK_EVENTS.length)];
+      game.emergency = event;
+      game.emergencyCost = event.walletOnly ? game.wallet : randomCost(event, Math.random());
+      el('emergency-text').textContent = event.walletOnly && game.wallet === 0
+        ? 'You lost your wallet! Luckily it was empty, and your savings account is safe.'
+        : event.walletOnly ? event.text(game.emergencyCost) : `${event.text(game.emergencyCost)} You can't skip it.`;
+      const savingsCanPay = game.bank > SAVINGS_WITHDRAWAL_FEE;
+      el('pay-order').hidden = event.walletOnly || !(game.wallet > 0 && savingsCanPay); // only a choice when both can pay
+      el('fee-note').textContent = !event.walletOnly && savingsCanPay
+        ? `Taking money out of your savings account costs a $${SAVINGS_WITHDRAWAL_FEE} fee.` : '';
+      el('pay-emergency').textContent = event.walletOnly || (game.wallet === 0 && !savingsCanPay) ? 'Continue'
+        : game.wallet === 0 ? `Take it out of savings and pay ($${SAVINGS_WITHDRAWAL_FEE} fee)` : 'Pay the bill';
       el('emergency').hidden = false;
     }
 
     function payEmergency() {
+      const event = game.emergency;
       const bankFirst = document.querySelector('input[name="pay-order"]:checked').value === 'bank';
-      const { fromWallet, fromBank, waived } = payCharge(game.wallet, game.bank, game.emergencyCost, bankFirst);
+      const { fromWallet, fromBank, fee, waived } = event.walletOnly
+        ? { fromWallet: game.wallet, fromBank: 0, fee: 0, waived: 0 }
+        : payCharge(game.wallet, game.bank, game.emergencyCost, bankFirst, SAVINGS_WITHDRAWAL_FEE);
       game.wallet -= fromWallet;
-      game.bank -= fromBank;
+      game.bank -= fromBank + fee;
       game.paidForEmergency = fromWallet + fromBank;
+      game.withdrawalFee = fee;
       game.waived = waived;
-      game.emergencySummary = `The $${game.emergencyCost} bike repair took $${fromWallet} from your wallet and $${fromBank} from your bank.`;
+      game.emergencySummary = event.walletOnly
+        ? `You lost your wallet with $${fromWallet} in it. Your savings account was safe.`
+        : `${event.name} ($${game.emergencyCost}) took $${fromWallet} from your wallet and $${fromBank} from your savings account.`;
+      if (fee) game.emergencySummary += ` Taking money out of savings cost a $${fee} fee.`;
       if (waived > 0) game.emergencySummary += ` The other $${waived} was waived because you had no money left.`;
       showMoney();
       el('emergency').hidden = true;
+      finishWorkday();
+    }
+
+    // Savings grow at the end of every 3rd Workday, after any bad luck has been paid.
+    function finishWorkday() {
+      if (game.workday % WORKDAYS_PER_INTEREST === 0) {
+        game.interest = interestOn(game.bank);
+        game.bank += game.interest;
+        showMoney();
+      }
       showSummary();
     }
 
     const minusDollars = (amount) => (amount ? `-$${amount}` : '$0');
 
     function showSummary() {
-      el('workday-title').textContent = 'Workday summary';
+      el('workday-title').textContent = `Workday ${game.workday} summary`;
       el('payout').hidden = true;
+      const carriedOver = game.workday > 1 ? [
+        ['Wallet at the start', `$${game.startWallet}`],
+        ['Savings account at the start', `$${game.startBank}`]
+      ] : [];
       const rows = [
+        ...carriedOver,
         ...game.earnedByRound.map(({ earnings, work }, i) => [`Earned in Round ${i + 1} (${work})`, `$${earnings}`]),
         ['Total earned', `$${game.totalEarned}`, 'total'],
         ['Spent on Food & Shelter', minusDollars(game.spentOnUpgrade)],
-        ['Paid for the emergency', minusDollars(game.paidForEmergency)],
-        ...(game.waived ? [['Emergency cost waived (not paid)', `$${game.waived}`]] : []),
+        ['Spent on wants', minusDollars(game.spentOnWants)],
+        [game.emergency ? `Paid for bad luck (${game.emergency.name})` : 'Paid for bad luck', minusDollars(game.paidForEmergency)],
+        ...(game.withdrawalFee ? [['Savings withdrawal fee', minusDollars(game.withdrawalFee)]] : []),
+        ...(game.waived ? [['Bad-luck cost waived (not paid)', `$${game.waived}`]] : []),
+        ...(game.interest ? [[`Savings interest (${SAVINGS_INTEREST_RATE * 100}%)`, `+$${game.interest}`]] : []),
         ['Wallet at the end', `$${game.wallet}`],
-        ['Bank at the end', `$${game.bank}`],
+        ['Savings account at the end', `$${game.bank}`],
         ['Total you have now', `$${game.wallet + game.bank}`, 'total']
       ];
       el('money-table').replaceChildren(...rows.map(([label, amount, className]) => {
@@ -763,13 +912,17 @@
           Object.assign(document.createElement('td'), { textContent: amount }));
         return row;
       }));
-      console.assert(game.totalEarned - game.spentOnUpgrade - game.paidForEmergency === game.wallet + game.bank, 'money table adds up');
+      console.assert(game.startWallet + game.startBank + game.totalEarned + game.interest
+        - game.spentOnUpgrade - game.spentOnWants - game.paidForEmergency - game.withdrawalFee === game.wallet + game.bank, 'money table adds up');
+      const workdaysToInterest = WORKDAYS_PER_INTEREST - (game.workday % WORKDAYS_PER_INTEREST);
       el('summary-list').replaceChildren(...[
         `You earned $${game.totalEarned} from work.`,
-        game.choiceSummary,
+        ...game.choices,
         game.emergencySummary,
-        `You finished with $${game.wallet} in your wallet and $${game.bank} in your bank.`
-      ].map((line) => {
+        game.interest ? `Your savings account grew by $${game.interest} (${SAVINGS_INTEREST_RATE * 100}%).` : null,
+        `You finished with $${game.wallet} in your wallet and $${game.bank} in your savings account.`,
+        `Your savings account grows ${SAVINGS_INTEREST_RATE * 100}% every ${WORKDAYS_PER_INTEREST} Workdays. Next time: in ${workdaysToInterest} ${workdaysToInterest === 1 ? 'Workday' : 'Workdays'}.`
+      ].filter(Boolean).map((line) => {
         const row = document.createElement('li');
         row.textContent = line;
         return row;
@@ -789,10 +942,16 @@
     el('choose-resident').addEventListener('click', showResidentPortal);
     el('demo-to-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
     el('buy-upgrade').addEventListener('change', updateMoneyPlan);
-    el('bank-amount').addEventListener('input', updateMoneyPlan);
+    el('bank-amount').addEventListener('input', () => {
+      el('save-percent').value = ''; // typing dollars means "not a percent"
+      updateMoneyPlan();
+    });
+    el('save-percent').addEventListener('input', updateMoneyPlan);
     el('money-done').addEventListener('click', confirmMoneyChoice);
     el('continue').addEventListener('click', continueWorkday);
     el('pay-emergency').addEventListener('click', payEmergency);
+    el('want-list').addEventListener('change', updateMoneyPlan);
+    el('next-workday').addEventListener('click', showResidentPortal);
     document.querySelectorAll('[data-go-to-choice]').forEach((button) => {
       button.addEventListener('click', () => showScreen('portal-choice'));
     });
@@ -824,8 +983,12 @@
         return;
       }
       el('topics-error').textContent = '';
+      resetWorkday();
       game.emergencySetting = form.get('emergency');
       game.questions = drawQuestions(topics);
+      ['summary', 'emergency', 'payout', 'results'].forEach((id) => { el(id).hidden = true; });
+      el('feedback').textContent = '';
+      el('job-area').replaceChildren();
       showScreen('workday', 'resident');
       startRound();
     });
