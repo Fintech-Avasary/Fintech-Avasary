@@ -1,7 +1,7 @@
 // Restocker job (§8): the grocery list shows each item's aisle and shelf; walk the top-down store and stock them.
 // Team decision 2026-11-03: the list stays visible, replacing the memorize-first version.
 const RESTOCK_ITEM_COUNT = 4; // per batch; new batches keep coming until work time runs out, so pay scales with time (§7.3)
-const RESTOCK_PAY_PER_ITEM = 20; // §7.2: pay scales with correct restocks only
+const RESTOCK_PAY_PER_ITEM = 11; // 11-05 playtest: rounds paid ~$545, cut to ~55% so a Workday pays ~$600. §7.2: pay scales with correct restocks only
 const RESTOCK_GOODS = ['Milk', 'Bread', 'Apples', 'Rice', 'Soap', 'Beans'];
 
 const STORE_COLS = 11;
@@ -73,7 +73,7 @@ const Restocker = {
     'Walk next to that shelf with the arrow keys or WASD (or the on-screen arrows).',
     'Press E (or Stock) to put the item on the shelf. Stock items in list order, marked with →.',
     'A wrong shelf earns nothing, so check the list before you stock.',
-    `When the list is done, a new list arrives. You earn $${RESTOCK_PAY_PER_ITEM} per item stocked.`
+    `When the list is done, a new list arrives. You earn $${RESTOCK_PAY_PER_ITEM.toFixed(2)} per item stocked.`
   ],
   howToFrames: RESTOCK_DEMO_PATH.length + RESTOCK_DEMO_HOLD,
 
@@ -214,6 +214,7 @@ const Restocker = {
         } else if (spot.aisle === item.aisle && spot.shelf === item.shelf) {
           restocked += 1;
           part('message').textContent = `${item.name} stocked!`;
+          floatText(container.querySelector('.restock-store'), `${item.name} stocked!`); // floatText is in index.html
           part('total').textContent = totalRestocked + restocked;
           if (restocked === items.length) {
             part('message').textContent = `${item.name} stocked! List done, here's a new delivery.`;

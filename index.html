@@ -135,6 +135,50 @@
     #portal-choice button span, .vial-shelf button.vial { font-family: system-ui, sans-serif; }
     .vial, .vial-shelf button.vial { border-radius: 0; }
     canvas { image-rendering: pixelated; }
+
+    /* 1. Number and text boxes: pixel look, no spinner arrows (the wheel is handled in the script). */
+    input[type="text"], input[type="number"] { background: #fbf8f1; box-shadow: inset 3px 3px 0 var(--line); font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 0.8rem; line-height: 1.6; }
+    input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+    input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type="text"]:focus-visible, input[type="number"]:focus-visible { outline: 3px solid #ff8200; outline-offset: 2px; }
+
+    /* 2. Hover: colored buttons go lighter, light buttons go darker. Mouse only, so taps on phones don't stick. */
+    @media (hover: hover) {
+      button:hover:not(:disabled) { filter: brightness(1.15); }
+      button.secondary:hover:not(:disabled), .pipe-grid button:hover:not(:disabled) { filter: brightness(0.9); }
+    }
+
+    /* 3. Text that floats up and fades: "+15 seconds", "Bread stocked!". */
+    .float-up { display: inline-block; margin-left: 8px; color: var(--accent); font-weight: 700; pointer-events: none; animation: float-up 1.2s ease-out forwards; }
+    @keyframes float-up { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-32px); } }
+    @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .float-up { animation-name: fade-out; } }
+    .restock-store { position: relative; }
+    .restock-store .float-up { position: absolute; left: 0; right: 0; top: 35%; margin: 0; text-align: center; font-size: 1.25rem; text-shadow: 2px 2px 0 #ffffff; }
+
+    /* 4. Wardrobe beside the waiting room (below it on phones). */
+    .waiting-layout { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+    .waiting-main { flex: 1 1 260px; min-width: 0; }
+    .wardrobe { flex: 1 1 200px; padding: 12px; border: 3px solid var(--ink); background: #fbf8f1; }
+    .wardrobe h2 { margin-top: 0; }
+    .wardrobe fieldset { margin: 8px 0; padding: 4px 12px; }
+    .wardrobe canvas { width: 120px; margin: 8px auto; background: #bfe3f0; }
+
+    /* 5. The shop: a little pixel storefront with a striped awning. */
+    #want-shop { position: relative; margin: 24px 0; padding: 24px 12px 12px; border: 3px solid var(--ink); background: #fff7e8; box-shadow: 3px 3px 0 var(--ink); }
+    #want-shop::before { content: ''; position: absolute; left: -3px; right: -3px; top: -3px; height: 16px; border: 3px solid var(--ink); background: repeating-linear-gradient(90deg, #d9480f 0 16px, #ffffff 16px 32px); }
+    #want-shop h2 { margin-top: 8px; text-align: center; }
+    #want-list { display: grid; gap: 8px; margin-top: 8px; }
+    #want-list label { padding: 8px; border: 2px solid var(--ink); background: var(--card); }
+    #want-list label:has(input:checked) { background: #ffe8cc; }
+    #want-list label:has(input:disabled) { opacity: 0.5; cursor: default; }
+
+    /* 7. Laptops: a bigger game. Phones keep the sizes above. */
+    @media (min-width: 900px) {
+      html { font-size: 18px; }
+      main, main:has(.restock-layout), main:has(.howto-layout) { max-width: 860px; padding: 32px; }
+      .pipe-grid { max-width: 560px; margin-inline: auto; }
+    }
   </style>
 </head>
 <body>
@@ -151,6 +195,10 @@
       <button type="button" id="choose-resident">
         Resident portal
         <span>For students: join your Block and go to work</span>
+      </button>
+      <button type="button" id="quick-play" class="secondary">
+        Quick play
+        <span>Try it now: skip the setup, all jobs and topics, bad luck always happens</span>
       </button>
     </section>
 
@@ -203,22 +251,43 @@
     <section id="resident-waiting" hidden>
       <h1>Maple Street Block</h1>
       <p class="muted">Waiting room: the Workday starts when the Mayor is ready.</p>
-      <canvas id="waiting-scene" width="320" height="128" aria-hidden="true"></canvas>
-
-      <h2>Residents here</h2>
-      <ul>
-        <li>You</li>
-        <li>Resident A</li>
-        <li>Resident B</li>
-        <li>Resident C</li>
-      </ul>
-      <button type="button" class="secondary" id="demo-to-mayor">Demo only: switch to Mayor portal</button>
+      <div class="waiting-layout">
+        <div class="waiting-main">
+          <canvas id="waiting-scene" width="320" height="128" aria-hidden="true"></canvas>
+          <h2>Residents here</h2>
+          <ul>
+            <li>You</li>
+            <li>Resident A</li>
+            <li>Resident B</li>
+            <li>Resident C</li>
+          </ul>
+          <button type="button" class="secondary" id="demo-to-mayor">Demo only: switch to Mayor portal</button>
+        </div>
+        <form class="wardrobe" id="wardrobe" aria-labelledby="wardrobe-title">
+          <h2 id="wardrobe-title">Wardrobe</h2>
+          <canvas id="look-preview" width="160" height="160" role="img" aria-label="Your Resident's look"></canvas>
+          <fieldset>
+            <legend>Shirt</legend>
+            <label><input type="radio" name="shirt" value="blue"> Blue</label>
+            <label><input type="radio" name="shirt" value="red"> Red</label>
+            <label><input type="radio" name="shirt" value="green"> Green</label>
+            <label><input type="radio" name="shirt" value="purple"> Purple</label>
+            <label><input type="radio" name="shirt" value="vols"> "Go Vols" T-shirt</label>
+          </fieldset>
+          <label><input type="checkbox" name="hat"> Orange hat</label>
+          <fieldset>
+            <legend>Character</legend>
+            <label><input type="radio" name="skin" value="person"> Resident</label>
+            <label><input type="radio" name="skin" value="hound"> Smokey, the Rocky Top hound</label>
+          </fieldset>
+        </form>
+      </div>
     </section>
 
     <section id="workday" hidden>
       <h1 id="workday-title"></h1>
-      <p>Wallet: <strong>$<span id="wallet">0</span></strong> &middot; Savings account: <strong>$<span id="bank">0</span></strong></p>
-      <p id="time-line">Work time earned: <strong id="time-earned">0</strong> seconds</p>
+      <p>Wallet: <strong id="wallet">$0.00</strong> &middot; Savings account: <strong id="bank">$0.00</strong></p>
+      <p id="time-line" aria-live="polite">Work time earned: <strong id="time-earned">0</strong> seconds</p>
 
       <div id="question-area">
         <h2 id="question-count"></h2>
@@ -247,9 +316,9 @@
             </div>
             <fieldset class="savings-box">
               <legend>Save for later</legend>
-              <p class="muted">Money in your savings account is safe if you lose your wallet, and it grows every 3 Workdays.</p>
-              <label for="bank-amount">Dollars to put in your savings account ($<span id="bank-max"></span> max)</label>
-              <input type="number" id="bank-amount" min="0" step="1" inputmode="numeric">
+              <p class="muted">Money in your savings account is safe if you lose your wallet, and it grows 5% at the end of every Workday.</p>
+              <label for="bank-amount">Dollars to put in your savings account (<span id="bank-max"></span> max)</label>
+              <input type="number" id="bank-amount" min="0" step="0.01" inputmode="decimal">
               <label for="save-percent">Or save a percent of it (remembered for next payday)</label>
               <input type="number" id="save-percent" min="0" max="100" step="any" inputmode="decimal" placeholder="%">
             </fieldset>
@@ -269,6 +338,7 @@
           <button type="button" id="pay-emergency"></button>
         </div>
         <div id="summary" hidden>
+          <p><strong id="summary-lesson"></strong></p>
           <table class="money-table">
             <caption class="muted">Your money this Workday</caption>
             <tbody id="money-table"></tbody>
@@ -287,9 +357,14 @@
   <script src="jobs/pharmacist.js"></script>
   <script>
     const BLOCK_CODE = 'MAPLE1';
+    // Money is in dollars with cents. Round every sum to the cent so float drift (0.1 + 0.2) never shows or breaks a check.
+    const roundCents = (x) => Math.round(x * 100) / 100;
+    const floorCents = (x) => Math.floor(Math.round(x * 10000) / 100) / 100; // round down, ignoring float noise below 0.01 cent
+    const money = (x) => `$${x.toFixed(2)}`;
+    console.assert(roundCents(0.1 + 0.2) === 0.3 && floorCents(0.29) === 0.29 && floorCents(12.349) === 12.34 && money(3.3) === '$3.30', 'cent rounding');
     const SECONDS_PER_CORRECT = 15;
     const QUESTION_GAP_SECONDS = 0; // §7.4 suggests ~5s; team decision 2026-11-03: no wait for now
-    const JOB_SWAP_SECONDS = 15; // §7.4: travel time when switching to a different job than last round
+    const JOB_SWAP_SECONDS = 5; // §7.4 says ~15s; team decision 2026-11-05: 5s. Travel time when switching jobs.
     const JOBS = { restocker: Restocker, plumber: Plumber, pharmacist: Pharmacist };
     const HOWTO_FRAME_MS = 500; // speed of the how-to animation
     const SCENE_FRAME_MS = 250; // speed of the city scenes (waiting room, travel)
@@ -301,31 +376,34 @@
     // Small costs are everyday asks; big ones top out near one strong round (~$450 in the 11-03 playtest).
     // walletOnly: a lost wallet takes the cash you carry and can never touch the savings account.
     const BAD_LUCK_EVENTS = [
-      { name: 'Popcorn money', min: 10, max: 20, step: 5, text: (cost) => `Your little sibling asks you for $${cost} to buy some popcorn.` },
-      { name: 'Grandma\'s gift', min: 40, max: 100, step: 10, text: (cost) => `It's your grandma's birthday. You buy her a gift for $${cost}.` },
-      { name: 'Bike repair', min: 150, max: 300, step: 10, text: (cost) => `Your bike broke down and you need it for work. The repair costs $${cost}.` },
-      { name: 'Vet bill', min: 200, max: 400, step: 10, text: (cost) => `Your dog fell down the stairs while playing and broke a tooth. The vet bill is $${cost}.` },
-      { name: 'Lost wallet', walletOnly: true, text: (cost) => `You lost your wallet! The $${cost} of cash in it is gone. Money in your savings account is safe.` }
+      { name: 'Popcorn money', min: 10, max: 20, step: 5, text: (cost) => `Your little sibling asks you for ${money(cost)} to buy some popcorn.` },
+      { name: 'Gift for Grandma',min: 40, max: 100, step: 10, text: (cost) => `It's your grandma's birthday. You buy her a gift for ${money(cost)}.` },
+      { name: 'Bike repair', min: 150, max: 300, step: 10, text: (cost) => `Your bike broke down and you need it for work. The repair costs ${money(cost)}.` },
+      { name: 'Vet bill', min: 200, max: 400, step: 10, text: (cost) => `Your dog fell down the stairs while playing and broke a tooth. The vet bill is ${money(cost)}.` },
+      { name: 'Lost wallet', walletOnly: true, text: (cost) => `You lost your wallet! The ${money(cost)} of cash in it is gone. Money in your savings account is safe.` }
     ];
     const randomCost = ({ min, max, step }, roll) => min + Math.floor(roll * ((max - min) / step + 1)) * step;
     console.assert(randomCost(BAD_LUCK_EVENTS[3], 0) === 200 && randomCost(BAD_LUCK_EVENTS[3], 0.9999) === 400
       && randomCost(BAD_LUCK_EVENTS[0], 0.5) % 5 === 0, 'event cost spans its range in steps');
     const EMERGENCY_SOMETIMES_CHANCE = 0.5;
+    const LOST_WALLET_MAX = 200; // a wallet holds at most this much cash, so carried-over wallets can't lose everything (11-05 test lost $1,280)
     const SAVINGS_WITHDRAWAL_FEE = 10; // team decision 2026-11-05: the cost of pulling savings out for a bill
 
     // Want shop after Round 2 payday: wallet money only (team decision 2026-11-05). §7.2: realistic price order.
+    // Prices end in .99 and come with a sales pitch, like real ads (team decision 2026-11-05).
     const WANTS = [
-      { name: 'Sneakers', cost: 80 },
-      { name: 'Headphones', cost: 200 },
-      { name: 'Game console', cost: 400 }
+      { name: 'Sneakers', cost: 79.99, pitch: 'Actual price $120, now only $79.99!' },
+      { name: 'Headphones', cost: 199.99, pitch: "It's only $199.99, best deal ever!" },
+      { name: 'Game console', cost: 399.99, pitch: 'Actual price $500, now only $399.99. Today only!' }
     ];
+    console.assert(WANTS.every((want) => want.pitch.includes(money(want.cost))), 'each sales pitch shows the real price');
 
     // Team decision 2026-11-05 (overrides "interest-free" in §7.2): the savings account grows
-    // at the end of every 3rd Workday. A Workday is one 2-round cycle.
-    const SAVINGS_INTEREST_RATE = 0.10;
-    const WORKDAYS_PER_INTEREST = 3;
-    const interestOn = (savings) => Math.floor(savings * SAVINGS_INTEREST_RATE); // whole dollars, rounded down
-    console.assert(interestOn(250) === 25 && interestOn(19) === 1 && interestOn(0) === 0, '10% interest in whole dollars');
+    // at the end of every Workday (team decision 2026-11-05, was 10% every 3rd). A Workday is one 2-round cycle.
+    const SAVINGS_INTEREST_RATE = 0.05;
+    const WORKDAYS_PER_INTEREST = 1;
+    const interestOn = (savings) => floorCents(savings * SAVINGS_INTEREST_RATE); // to the cent, rounded down
+    console.assert(interestOn(250) === 12.5 && interestOn(19.99) === 0.99 && interestOn(0) === 0, '5% interest to the cent');
 
     const ROUNDS = 2; // §15: the bank-or-buy choice sits between the two rounds
     const QUESTIONS_PER_ROUND = 3;
@@ -345,7 +423,6 @@
       { topic: 'saving', text: 'What is an emergency fund for?', answer: 'Covering surprise costs', wrong: ['Buying things on sale', 'Paying for vacations'] },
       { topic: 'saving', text: 'What is the best time to start saving?', answer: 'Before you need the money', wrong: ['After an emergency', 'Only after buying what you want'] },
       { topic: 'saving', text: 'You save $5 a week. How much do you have after 10 weeks?', answer: '$50', wrong: ['$15', '$500'] },
-      { topic: 'saving', text: 'What does "pay yourself first" mean?', answer: 'Put money into savings before you spend', wrong: ['Buy yourself a treat every payday', 'Pay your bills late'] },
       { topic: 'saving', text: 'Why save up for something instead of borrowing to buy it now?', answer: 'You avoid paying extra for the loan', wrong: ['Prices always go down', 'Stores only take saved money'] },
       { topic: 'banking', text: 'What does a savings account pay you?', answer: 'Interest', wrong: ['Rent', 'A bonus for every purchase'] },
       { topic: 'banking', text: 'Why keep money in a bank instead of at home?', answer: 'It is safer from loss and theft', wrong: ['The bank pays for everything you buy', 'You can never take it out'] },
@@ -387,7 +464,7 @@
       Object.assign(game, {
         workday: game.workday + 1, lastJob: null, round: 0, questions: [], questionIndex: 0, workSeconds: 0,
         startWallet: game.wallet, startBank: game.bank,
-        totalEarned: 0, earnedByRound: [], spentOnUpgrade: 0, spentOnWants: 0, paidForEmergency: 0, withdrawalFee: 0, waived: 0, interest: 0, emergency: null,
+        totalEarned: 0, earnedByRound: [], spentOnUpgrade: 0, spentOnWants: 0, paidForEmergency: 0, paidFromBank: 0, withdrawalFee: 0, waived: 0, interest: 0, emergency: null,
         choices: [], emergencySummary: 'No bad luck this Workday.'
       });
     }
@@ -403,15 +480,15 @@
     // Team decision 2026-11-05: taking money out of savings for a bill costs a flat fee, also paid from savings.
     // Savings that can't cover more than the fee aren't touched, since nothing would reach the bill.
     function payCharge(wallet, bank, charge, bankFirst, fee = 0) {
-      const usable = bank > fee ? bank - fee : 0;
+      const usable = bank > fee ? roundCents(bank - fee) : 0;
       const fromFirst = Math.min(charge, bankFirst ? usable : wallet);
-      const fromSecond = Math.min(charge - fromFirst, bankFirst ? wallet : usable);
+      const fromSecond = Math.min(roundCents(charge - fromFirst), bankFirst ? wallet : usable);
       const fromBank = bankFirst ? fromFirst : fromSecond;
       return {
         fromWallet: bankFirst ? fromSecond : fromFirst,
         fromBank,
         fee: fromBank > 0 ? fee : 0,
-        waived: charge - fromFirst - fromSecond
+        waived: roundCents(charge - fromFirst - fromSecond)
       };
     }
 
@@ -426,6 +503,60 @@
     console.assert(sameCharge(payCharge(30, 50, 80, false, 10), 30, 40, 10), 'fee comes out of savings before the bill');
     console.assert(sameCharge(payCharge(0, 10, 80, false, 10), 0, 0, 80) && payCharge(0, 10, 80, false, 10).fee === 0, 'savings at or under the fee stay put');
     console.assert(emergencyHappens('always', 0.99) && !emergencyHappens('off', 0) && emergencyHappens('sometimes', 0.49) && !emergencyHappens('sometimes', 0.5), 'Mayor emergency setting');
+
+    // ---- Wardrobe (§7.2 Customization, free for now): the look is remembered in this browser, like the save percent. ----
+    const SHIRTS = { blue: '#2f3e8f', red: '#a33b2c', green: '#1f6f54', purple: '#7a4fa0', vols: '#ff8200' };
+    const SKINS = { person: PLAYER_SPRITE, hound: ['..wwww..', 'dwwwwwwd', 'dwewwewd', 'd.weew.d', 'bbbbbbbb', 'wbbbbbbw', '.wwwwww.', '.ww..ww.'] };
+    const LOOK_KEY = 'avasary.look';
+    const DEFAULT_LOOK = { shirt: 'blue', hat: false, skin: 'person' };
+    function loadLook() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(LOOK_KEY)) || {};
+        return { shirt: SHIRTS[saved.shirt] ? saved.shirt : DEFAULT_LOOK.shirt, hat: saved.hat === true, skin: SKINS[saved.skin] ? saved.skin : DEFAULT_LOOK.skin };
+      } catch { return { ...DEFAULT_LOOK }; }
+    }
+    let look = loadLook();
+
+    // The 8x8 sprite rows for a look. step: the walking frame with the legs together.
+    function lookSprite({ shirt, hat, skin }, step = false) {
+      let rows = [...SKINS[skin]];
+      if (shirt === 'vols') rows[5] = `${rows[5].slice(0, 2)}wwww${rows[5].slice(6)}`; // white chest band for the letters
+      if (hat) rows = ['..oooo..', 'oooooooo', ...rows.slice(2)];
+      if (step) rows[7] = `..${rows[7].replace(/\./g, '')[0].repeat(4)}..`;
+      return rows;
+    }
+    const lookColors = ({ shirt }) => ({ ...SPRITE_COLORS, b: SHIRTS[shirt], w: '#f4f1ea', d: '#5b5f66', o: '#ff8200' });
+    console.assert(lookSprite({ shirt: 'vols', hat: true, skin: 'person' })[5] === 'sbwwwwbs' && lookSprite(DEFAULT_LOOK, true)[7] === '..pppp..'
+      && lookSprite({ ...DEFAULT_LOOK, skin: 'hound' }, true)[7] === '..wwww..' && lookSprite({ ...DEFAULT_LOOK, hat: true })[1] === 'oooooooo', 'wardrobe sprites');
+
+    function drawLookPreview() {
+      const context = el('look-preview').getContext('2d');
+      context.fillStyle = '#bfe3f0';
+      context.fillRect(0, 0, 160, 160);
+      drawResident(context, 0, 0, 160, lookSprite(look), lookColors(look));
+      if (look.shirt === 'vols') { // the chest band is row 5: y 96-112, x 48-112
+        context.fillStyle = '#ff8200';
+        context.font = 'bold 11px system-ui, sans-serif';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText('GO VOLS', 80, 104);
+      }
+    }
+    function showWardrobe() {
+      const form = el('wardrobe');
+      form.elements.shirt.value = look.shirt;
+      form.elements.hat.checked = look.hat;
+      form.elements.skin.value = look.skin;
+      drawLookPreview();
+    }
+
+    // Short text that floats up and fades. Decorative: the same news is also in the page text for screen readers.
+    function floatText(container, text) {
+      const span = Object.assign(document.createElement('span'), { className: 'float-up', textContent: text });
+      span.setAttribute('aria-hidden', 'true');
+      container.append(span);
+      setTimeout(() => span.remove(), 1300); // a timer, not animationend, so it still goes if animations are off
+    }
 
     const SCREENS = ['portal-choice', 'mayor-portal', 'resident-join', 'resident-waiting', 'workday'];
     const PORTAL_LABELS = { mayor: 'Mayor portal (educator)', resident: 'Resident portal (student)' };
@@ -497,9 +628,10 @@
         { x: 168, w: 56, h: 36, color: '#8a9a5b' }, { x: 244, w: 64, h: 44, color: '#a85d7a' }
       ]);
       // Each Resident stands beside their own front door.
-      [['You', 58, '#2f3e8f'], ['', 138, '#a33b2c'], ['', 214, '#1f6f54'], ['', 296, '#7a4fa0']].forEach(([label, x, color], i) => {
+      [['You', 58, null], ['', 138, '#a33b2c'], ['', 214, '#1f6f54'], ['', 296, '#7a4fa0']].forEach(([label, x, color], i) => {
         const tapping = (frame + i * 3) % 8 < 2; // idle: each Resident shifts their feet now and then
-        drawResident(context, (x - 10) / RESIDENT_TILE, RESIDENT_Y, RESIDENT_TILE, tapping ? PLAYER_SPRITE_STEP : PLAYER_SPRITE, shirt(color));
+        if (!color) drawResident(context, (x - 10) / RESIDENT_TILE, RESIDENT_Y, RESIDENT_TILE, lookSprite(look, tapping), lookColors(look)); // you, in your wardrobe look
+        else drawResident(context, (x - 10) / RESIDENT_TILE, RESIDENT_Y, RESIDENT_TILE, tapping ? PLAYER_SPRITE_STEP : PLAYER_SPRITE, shirt(color));
         if (label) { // light tag above the head
           context.fillStyle = '#f4f1ea';
           context.fillRect(x - 11, 64, 22, 11);
@@ -521,8 +653,7 @@
       ]);
       const progress = Math.min(1, (frame * SCENE_FRAME_MS) / (JOB_SWAP_SECONDS * 1000));
       const x = 44 + progress * (276 - 44); // door to door
-      drawResident(context, (x - 10) / RESIDENT_TILE, RESIDENT_Y, RESIDENT_TILE,
-        progress < 1 && frame % 2 ? PLAYER_SPRITE_STEP : PLAYER_SPRITE);
+      drawResident(context, (x - 10) / RESIDENT_TILE, RESIDENT_Y, RESIDENT_TILE, lookSprite(look, progress < 1 && frame % 2 === 1), lookColors(look));
     }
 
     function showScreen(screen, portal) {
@@ -536,7 +667,10 @@
     function showResidentPortal() {
       // §4: a Resident types the Block code once, then goes straight to the waiting room.
       showScreen(game.joined ? 'resident-waiting' : 'resident-join', 'resident');
-      if (game.joined) playScene(el('waiting-scene'), drawWaitingRoom);
+      if (game.joined) {
+        showWardrobe();
+        playScene(el('waiting-scene'), drawWaitingRoom);
+      }
     }
 
     // §7.3: Food & Shelter multiplies the seconds each correct answer pays on a time-based job.
@@ -546,8 +680,8 @@
     const roundQuestions = () => game.questions[game.round - 1];
 
     function showMoney() {
-      el('wallet').textContent = game.wallet;
-      el('bank').textContent = game.bank;
+      el('wallet').textContent = money(game.wallet);
+      el('bank').textContent = money(game.bank);
     }
 
     function startRound() {
@@ -588,7 +722,8 @@
         const earned = secondsForCorrectAnswer(game.foodShelterMultiplier);
         game.workSeconds += earned;
         el('time-earned').textContent = game.workSeconds;
-        el('feedback').replaceChildren(label, 'Correct! ', answerText(index, 'answer-right'), `. +${earned} seconds of work time.`);
+        floatText(el('time-line'), `+${earned} seconds`);
+        el('feedback').replaceChildren(label, 'Correct! ', answerText(index, 'answer-right'), '.');
       } else {
         el('feedback').replaceChildren(label, 'Not quite. You picked ', answerText(index, 'answer-wrong'),
           '. The answer is ', answerText(question.correct, 'answer-right'), '.');
@@ -704,12 +839,13 @@
     }
 
     // §7.2: every job pays its performance-based earnings into the same wallet.
-    function finishJob({ earnings, summary }) {
-      game.wallet += earnings;
-      game.totalEarned += earnings;
+    function finishJob({ earnings: rawEarnings, summary }) {
+      const earnings = roundCents(rawEarnings);
+      game.wallet = roundCents(game.wallet + earnings);
+      game.totalEarned = roundCents(game.totalEarned + earnings);
       game.earnedByRound.push({ earnings, work: game.roundWork });
       showMoney();
-      el('payout-text').textContent = `${summary} You earned $${earnings}.`;
+      el('payout-text').replaceChildren(`${summary} `, Object.assign(document.createElement('strong'), { textContent: `You earned ${money(earnings)}.` }));
       el('payout').hidden = false;
 
       // §15: the save-or-spend choice comes after every round, so an upgrade pays off before the emergency.
@@ -726,8 +862,8 @@
         el('buy-upgrade').checked = false;
         el('buy-upgrade').disabled = owned || game.wallet < UPGRADE_COST;
         el('buy-upgrade-text').textContent = owned ? 'You already have Food & Shelter.'
-          : game.wallet < UPGRADE_COST ? `Food & Shelter costs $${UPGRADE_COST}: not enough money`
-          : `Buy Food & Shelter for $${UPGRADE_COST}: ${UPGRADE_MULTIPLIER}x work time per correct answer`;
+          : game.wallet < UPGRADE_COST ? `Food & Shelter costs ${money(UPGRADE_COST)}: not enough money`
+          : `Buy Food & Shelter for ${money(UPGRADE_COST)}: ${UPGRADE_MULTIPLIER}x work time per correct answer`;
         el('bank-amount').value = 0;
         el('save-percent').value = loadSavePercent();
         // Want shop: any mix the wallet can cover. Only built after the last round, so chosenWants() is empty before it.
@@ -735,7 +871,7 @@
           const label = document.createElement('label');
           label.innerHTML = '<input type="checkbox" name="wants"> ';
           label.firstChild.value = i;
-          label.append(`${want.name}: $${want.cost}`);
+          label.append(Object.assign(document.createElement('strong'), { textContent: want.name }), document.createElement('br'), want.pitch);
           return label;
         }));
         el('money-done').textContent = lastRound ? 'Finish the Workday' : `Start Round ${game.round + 1}`;
@@ -744,19 +880,19 @@
     }
 
     const chosenWants = () => [...document.querySelectorAll('input[name="wants"]:checked')].map((box) => WANTS[box.value]);
-    const wantsCost = () => chosenWants().reduce((sum, want) => sum + want.cost, 0);
+    const wantsCost = () => roundCents(chosenWants().reduce((sum, want) => sum + want.cost, 0));
     const upgradeCost = () => (el('buy-upgrade').checked ? UPGRADE_COST : 0);
 
     // The most a Resident can save right now: the wallet, less the upgrade and wants they ticked.
-    const bankMax = () => game.wallet - upgradeCost() - wantsCost();
+    const bankMax = () => roundCents(game.wallet - upgradeCost() - wantsCost());
 
-    // §11.1: deposits have no limits, so any whole amount up to the wallet is allowed.
+    // §11.1: deposits have no limits, so any amount to the cent up to the wallet is allowed.
     function clampDeposit(value, max) {
-      const amount = Math.floor(Number(value));
+      const amount = roundCents(Number(value));
       return Number.isFinite(amount) ? Math.min(Math.max(amount, 0), max) : 0;
     }
     console.assert(clampDeposit('25', 60) === 25 && clampDeposit('90', 60) === 60 && clampDeposit('-5', 60) === 0
-      && clampDeposit('', 60) === 0 && clampDeposit('abc', 60) === 0 && clampDeposit('12.7', 60) === 12, 'deposit is a whole amount from 0 to the max');
+      && clampDeposit('', 60) === 0 && clampDeposit('abc', 60) === 0 && clampDeposit('12.7', 60) === 12.7 && clampDeposit('12.345', 60) === 12.35, 'deposit is 0 to the max, to the cent');
 
     // A percent (0-100, decimals allowed) of what's left to save; '' means the student typed dollars instead.
     function clampPercent(value) {
@@ -764,9 +900,9 @@
       const percent = Number(value);
       return Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : '';
     }
-    const percentOf = (max, percent) => Math.floor(max * percent / 100); // whole dollars, rounded down
+    const percentOf = (max, percent) => floorCents(max * percent / 100); // to the cent, rounded down
     console.assert(clampPercent('25') === 25 && clampPercent('150') === 100 && clampPercent('-3') === 0 && clampPercent('') === ''
-      && clampPercent('abc') === '' && percentOf(360, 12.5) === 45, 'save percent is 0-100 and pays whole dollars');
+      && clampPercent('abc') === '' && percentOf(360, 12.5) === 45 && percentOf(100.01, 50) === 50, 'save percent is 0-100, to the cent');
 
     // The saving percent is remembered in this browser between paydays and reloads. Storage can be blocked, so it's optional.
     const SAVE_PERCENT_KEY = 'avasary.savePercent';
@@ -783,7 +919,7 @@
     function updateMoneyPlan() {
       // Grey out anything that no longer fits in the wallet next to what's already ticked.
       const upgrade = el('buy-upgrade');
-      upgrade.disabled = game.foodShelterMultiplier > 1 || (!upgrade.checked && UPGRADE_COST > game.wallet - wantsCost());
+      upgrade.disabled = game.foodShelterMultiplier > 1 || (!upgrade.checked && UPGRADE_COST > roundCents(game.wallet - wantsCost()));
       document.querySelectorAll('input[name="wants"]').forEach((box) => {
         box.disabled = !box.checked && WANTS[box.value].cost > bankMax();
       });
@@ -791,10 +927,10 @@
       const percent = clampPercent(el('save-percent').value);
       if (percent !== '') el('bank-amount').value = percentOf(max, percent); // the percent fills in the dollar box
       const deposit = clampDeposit(el('bank-amount').value, max);
-      el('bank-max').textContent = max;
+      el('bank-max').textContent = money(max);
       el('bank-amount').max = max;
       const spend = upgradeCost() + wantsCost();
-      el('money-plan').textContent = `${spend ? `Spend $${spend}, save` : 'Save'} $${deposit}, keep $${max - deposit} in your wallet.`;
+      el('money-plan').textContent = `${spend ? `Spend ${money(spend)}, save` : 'Save'} ${money(deposit)}, keep ${money(roundCents(max - deposit))} in your wallet.`;
     }
 
     // §15: save, buy, or both. Purchases come out first, then any amount of the rest goes to savings.
@@ -804,20 +940,20 @@
       const deposit = clampDeposit(el('bank-amount').value, bankMax());
       storeSavePercent(clampPercent(el('save-percent').value));
       if (buy) {
-        game.wallet -= UPGRADE_COST;
-        game.spentOnUpgrade += UPGRADE_COST;
+        game.wallet = roundCents(game.wallet - UPGRADE_COST);
+        game.spentOnUpgrade = roundCents(game.spentOnUpgrade + UPGRADE_COST);
         game.foodShelterMultiplier = UPGRADE_MULTIPLIER;
       }
       const wantsSpend = wantsCost();
-      game.wallet -= wantsSpend + deposit;
-      game.spentOnWants += wantsSpend;
-      game.bank += deposit;
+      game.wallet = roundCents(game.wallet - wantsSpend - deposit);
+      game.spentOnWants = roundCents(game.spentOnWants + wantsSpend);
+      game.bank = roundCents(game.bank + deposit);
       const did = [
-        buy && `bought Food & Shelter for $${UPGRADE_COST}`,
-        wants.length && `bought ${wants.map((want) => want.name.toLowerCase()).join(' and ')} for $${wantsSpend}`,
-        `put $${deposit} in your savings account`
+        buy && `bought Food & Shelter for ${money(UPGRADE_COST)}`,
+        wants.length && `bought ${wants.map((want) => want.name.toLowerCase()).join(' and ')} for ${money(wantsSpend)}`,
+        `put ${money(deposit)} in your savings account`
       ].filter(Boolean).join(', ');
-      game.choices.push(`After Round ${game.round} you ${did} and kept $${game.wallet} in your wallet.`);
+      game.choices.push(`After Round ${game.round} you ${did} and kept ${money(game.wallet)} in your wallet.`);
       showMoney();
       if (game.round < ROUNDS) startRound();
       else endWorkday();
@@ -838,16 +974,16 @@
       el('payout').hidden = true;
       const event = BAD_LUCK_EVENTS[Math.floor(Math.random() * BAD_LUCK_EVENTS.length)];
       game.emergency = event;
-      game.emergencyCost = event.walletOnly ? game.wallet : randomCost(event, Math.random());
+      game.emergencyCost = event.walletOnly ? Math.min(game.wallet, LOST_WALLET_MAX) : randomCost(event, Math.random());
       el('emergency-text').textContent = event.walletOnly && game.wallet === 0
         ? 'You lost your wallet! Luckily it was empty, and your savings account is safe.'
         : event.walletOnly ? event.text(game.emergencyCost) : `${event.text(game.emergencyCost)} You can't skip it.`;
       const savingsCanPay = game.bank > SAVINGS_WITHDRAWAL_FEE;
       el('pay-order').hidden = event.walletOnly || !(game.wallet > 0 && savingsCanPay); // only a choice when both can pay
       el('fee-note').textContent = !event.walletOnly && savingsCanPay
-        ? `Taking money out of your savings account costs a $${SAVINGS_WITHDRAWAL_FEE} fee.` : '';
+        ? `Taking money out of your savings account costs a ${money(SAVINGS_WITHDRAWAL_FEE)} fee.` : '';
       el('pay-emergency').textContent = event.walletOnly || (game.wallet === 0 && !savingsCanPay) ? 'Continue'
-        : game.wallet === 0 ? `Take it out of savings and pay ($${SAVINGS_WITHDRAWAL_FEE} fee)` : 'Pay the bill';
+        : game.wallet === 0 ? `Take it out of savings and pay (${money(SAVINGS_WITHDRAWAL_FEE)} fee)` : 'Pay the bill';
       el('emergency').hidden = false;
     }
 
@@ -855,55 +991,75 @@
       const event = game.emergency;
       const bankFirst = document.querySelector('input[name="pay-order"]:checked').value === 'bank';
       const { fromWallet, fromBank, fee, waived } = event.walletOnly
-        ? { fromWallet: game.wallet, fromBank: 0, fee: 0, waived: 0 }
+        ? { fromWallet: game.emergencyCost, fromBank: 0, fee: 0, waived: 0 }
         : payCharge(game.wallet, game.bank, game.emergencyCost, bankFirst, SAVINGS_WITHDRAWAL_FEE);
-      game.wallet -= fromWallet;
-      game.bank -= fromBank + fee;
-      game.paidForEmergency = fromWallet + fromBank;
+      game.wallet = roundCents(game.wallet - fromWallet);
+      game.bank = roundCents(game.bank - fromBank - fee);
+      game.paidForEmergency = roundCents(fromWallet + fromBank);
+      game.paidFromBank = fromBank;
       game.withdrawalFee = fee;
       game.waived = waived;
       game.emergencySummary = event.walletOnly
-        ? `You lost your wallet with $${fromWallet} in it. Your savings account was safe.`
-        : `${event.name} ($${game.emergencyCost}) took $${fromWallet} from your wallet and $${fromBank} from your savings account.`;
-      if (fee) game.emergencySummary += ` Taking money out of savings cost a $${fee} fee.`;
-      if (waived > 0) game.emergencySummary += ` The other $${waived} was waived because you had no money left.`;
+        ? `You lost your wallet with ${money(fromWallet)} in it. Your savings account was safe.`
+        : `${event.name} (${money(game.emergencyCost)}) took ${money(fromWallet)} from your wallet and ${money(fromBank)} from your savings account.`;
+      if (fee) game.emergencySummary += ` Taking money out of savings cost a ${money(fee)} fee.`;
+      if (waived > 0) game.emergencySummary += ` The other ${money(waived)} was waived because you had no money left.`;
       showMoney();
       el('emergency').hidden = true;
       finishWorkday();
     }
 
-    // Savings grow at the end of every 3rd Workday, after any bad luck has been paid.
+    // Savings grow at the end of every WORKDAYS_PER_INTEREST-th Workday, after any bad luck has been paid.
     function finishWorkday() {
       if (game.workday % WORKDAYS_PER_INTEREST === 0) {
         game.interest = interestOn(game.bank);
-        game.bank += game.interest;
+        game.bank = roundCents(game.bank + game.interest);
         showMoney();
       }
       showSummary();
     }
 
-    const minusDollars = (amount) => (amount ? `-$${amount}` : '$0');
+    // The one line that ties the Workday's bad luck back to saving (§12: the sharpest teaching moment).
+    function lessonFor({ event, fromWallet, fee, waived, spentOnWants }) {
+      if (!event) return "No bad luck this time. Money in your savings account means you're ready when it comes.";
+      if (event.walletOnly) {
+        return fromWallet ? `The ${money(fromWallet)} you lost was cash in your wallet. If it had been in your savings account, it would still be yours.`
+          : 'Your wallet was empty when you lost it, so you lost nothing.';
+      }
+      if (waived) {
+        return `You were ${money(waived)} short for the ${event.name.toLowerCase()}.${spentOnWants ? ` You spent ${money(spentOnWants)} on wants today.` : ''}`
+          + " In real life, a bill you can't pay becomes debt.";
+      }
+      if (fee) return `Your savings account paid for the ${event.name.toLowerCase()}. That's what an emergency fund is for, even with the ${money(fee)} fee.`;
+      return `Your wallet paid for the ${event.name.toLowerCase()}. Cash in a wallet can be lost, so savings are the safer place for an emergency fund.`;
+    }
+    console.assert(lessonFor({ event: { name: 'Vet bill' }, fromWallet: 50, fee: 0, waived: 150, spentOnWants: 200 }).includes('$150.00 short')
+      && lessonFor({ event: { name: 'Lost wallet', walletOnly: true }, fromWallet: 80 }).includes('$80.00')
+      && lessonFor({ event: { name: 'Vet bill' }, fromWallet: 0, fee: 10, waived: 0 }).includes('emergency fund')
+      && lessonFor({}).startsWith('No bad luck'), 'summary lesson matches what happened');
+
+    const minusDollars = (amount) => (amount ? `-${money(amount)}` : money(0));
 
     function showSummary() {
       el('workday-title').textContent = `Workday ${game.workday} summary`;
       el('payout').hidden = true;
       const carriedOver = game.workday > 1 ? [
-        ['Wallet at the start', `$${game.startWallet}`],
-        ['Savings account at the start', `$${game.startBank}`]
+        ['Wallet at the start', money(game.startWallet)],
+        ['Savings account at the start', money(game.startBank)]
       ] : [];
       const rows = [
         ...carriedOver,
-        ...game.earnedByRound.map(({ earnings, work }, i) => [`Earned in Round ${i + 1} (${work})`, `$${earnings}`]),
-        ['Total earned', `$${game.totalEarned}`, 'total'],
+        ...game.earnedByRound.map(({ earnings, work }, i) => [`Earned in Round ${i + 1} (${work})`, money(earnings)]),
+        ['Total earned', money(game.totalEarned), 'total'],
         ['Spent on Food & Shelter', minusDollars(game.spentOnUpgrade)],
         ['Spent on wants', minusDollars(game.spentOnWants)],
         [game.emergency ? `Paid for bad luck (${game.emergency.name})` : 'Paid for bad luck', minusDollars(game.paidForEmergency)],
         ...(game.withdrawalFee ? [['Savings withdrawal fee', minusDollars(game.withdrawalFee)]] : []),
-        ...(game.waived ? [['Bad-luck cost waived (not paid)', `$${game.waived}`]] : []),
-        ...(game.interest ? [[`Savings interest (${SAVINGS_INTEREST_RATE * 100}%)`, `+$${game.interest}`]] : []),
-        ['Wallet at the end', `$${game.wallet}`],
-        ['Savings account at the end', `$${game.bank}`],
-        ['Total you have now', `$${game.wallet + game.bank}`, 'total']
+        ...(game.waived ? [['Bad-luck cost waived (not paid)', money(game.waived)]] : []),
+        ...(game.interest ? [[`Savings interest (${SAVINGS_INTEREST_RATE * 100}%)`, `+${money(game.interest)}`]] : []),
+        ['Wallet at the end', money(game.wallet)],
+        ['Savings account at the end', money(game.bank)],
+        ['Total you have now', money(roundCents(game.wallet + game.bank)), 'total']
       ];
       el('money-table').replaceChildren(...rows.map(([label, amount, className]) => {
         const row = document.createElement('tr');
@@ -912,21 +1068,24 @@
           Object.assign(document.createElement('td'), { textContent: amount }));
         return row;
       }));
-      console.assert(game.startWallet + game.startBank + game.totalEarned + game.interest
-        - game.spentOnUpgrade - game.spentOnWants - game.paidForEmergency - game.withdrawalFee === game.wallet + game.bank, 'money table adds up');
+      console.assert(roundCents(game.startWallet + game.startBank + game.totalEarned + game.interest
+        - game.spentOnUpgrade - game.spentOnWants - game.paidForEmergency - game.withdrawalFee) === roundCents(game.wallet + game.bank), 'money table adds up');
       const workdaysToInterest = WORKDAYS_PER_INTEREST - (game.workday % WORKDAYS_PER_INTEREST);
       el('summary-list').replaceChildren(...[
-        `You earned $${game.totalEarned} from work.`,
+        `You earned ${money(game.totalEarned)} from work.`,
         ...game.choices,
         game.emergencySummary,
-        game.interest ? `Your savings account grew by $${game.interest} (${SAVINGS_INTEREST_RATE * 100}%).` : null,
-        `You finished with $${game.wallet} in your wallet and $${game.bank} in your savings account.`,
-        `Your savings account grows ${SAVINGS_INTEREST_RATE * 100}% every ${WORKDAYS_PER_INTEREST} Workdays. Next time: in ${workdaysToInterest} ${workdaysToInterest === 1 ? 'Workday' : 'Workdays'}.`
+        game.interest ? `Your savings account grew by ${money(game.interest)} (${SAVINGS_INTEREST_RATE * 100}%).` : null,
+        `You finished with ${money(game.wallet)} in your wallet and ${money(game.bank)} in your savings account.`,
+        WORKDAYS_PER_INTEREST === 1 ? `Your savings account grows ${SAVINGS_INTEREST_RATE * 100}% at the end of every Workday.`
+          : `Your savings account grows ${SAVINGS_INTEREST_RATE * 100}% every ${WORKDAYS_PER_INTEREST} Workdays. Next time: in ${workdaysToInterest} ${workdaysToInterest === 1 ? 'Workday' : 'Workdays'}.`
       ].filter(Boolean).map((line) => {
         const row = document.createElement('li');
         row.textContent = line;
         return row;
       }));
+      el('summary-lesson').textContent = lessonFor({ event: game.emergency, fromWallet: roundCents(game.paidForEmergency - game.paidFromBank),
+        fee: game.withdrawalFee, waived: game.waived, spentOnWants: game.spentOnWants });
       el('summary').hidden = false;
     }
 
@@ -938,8 +1097,25 @@
       label.append(`${TOPIC_NAMES[topic]} (${questionsInTopics([topic]).length} questions)`);
       return label;
     }));
+    // A mouse wheel over a focused number box would change the amount. Unfocus it so the wheel scrolls the page instead.
+    document.addEventListener('wheel', (event) => {
+      if (event.target === document.activeElement && event.target.matches('input[type="number"]')) event.target.blur();
+    }, { passive: true });
+    el('wardrobe').addEventListener('change', () => {
+      const form = el('wardrobe');
+      look = { shirt: form.elements.shirt.value, hat: form.elements.hat.checked, skin: form.elements.skin.value };
+      try { localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch { /* blocked storage: the look lasts until reload */ }
+      drawLookPreview();
+      playScene(el('waiting-scene'), drawWaitingRoom); // redraw now, also under reduced motion
+    });
     el('choose-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
     el('choose-resident').addEventListener('click', showResidentPortal);
+    // Quick play for judges and visitors: join the Block and start with the Mayor's defaults, bad luck guaranteed (event still random).
+    el('quick-play').addEventListener('click', () => {
+      game.joined = true;
+      document.querySelector('input[name="emergency"][value="always"]').checked = true;
+      el('start-form').requestSubmit();
+    });
     el('demo-to-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
     el('buy-upgrade').addEventListener('change', updateMoneyPlan);
     el('bank-amount').addEventListener('input', () => {

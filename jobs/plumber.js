@@ -1,6 +1,6 @@
 // Plumber job (§8): rotate pipe tiles until water runs from the outpipe (left) to the inpipe (right).
 const PLUMBER_GRID_SIZES = [3, 4, 4, 5]; // later grids stay at the last size
-const PLUMBER_PAY_PER_TILE = 6; // §7.2: a finished grid pays every tile; bigger grids pay more
+const PLUMBER_PAY_PER_TILE = 3.30; // 11-05 playtest: cut to ~55% with the other jobs. §7.2: a finished grid pays every tile; bigger grids pay more
 // Team decision 2026-11-05: 30% easier. Each tile is scrambled with this chance, so about 30% fewer
 // pipes start turned wrong than when every tile was scrambled.
 const PLUMBER_SCRAMBLE_SHARE = 0.7;
@@ -122,7 +122,7 @@ const Plumber = {
     'Water comes out at Out on the left and has to reach In on the right.',
     'Tap or click a pipe to turn it a quarter turn. Pipes with water from Out turn blue, and pipes joined to In turn green.',
     'When the blue path joins Out to In, the job is fixed and a new grid appears.',
-    `Grids get bigger as you go, and bigger grids pay more ($${PLUMBER_PAY_PER_TILE} per tile). If time runs out mid-grid, you're paid for each tile you joined to Out or In.`
+    `Grids get bigger as you go, and bigger grids pay more ($${PLUMBER_PAY_PER_TILE.toFixed(2)} per tile). If time runs out mid-grid, you're paid for each tile you joined to Out or In.`
   ],
   howToFrames: 8,
 
@@ -221,7 +221,7 @@ const Plumber = {
       earnings += pay;
       solvedCount += 1;
       part('solved').textContent = solvedCount;
-      part('message').textContent = `Water's flowing! +$${pay}. Here's the next job.`;
+      part('message').textContent = `Water's flowing! +$${pay.toFixed(2)}. Here's the next job.`;
       nextPuzzle();
     }
 
@@ -236,7 +236,7 @@ const Plumber = {
       container.replaceChildren();
       const partTiles = Math.max(0, joinedTiles(puzzle) - startJoined);
       earnings += partTiles * PLUMBER_PAY_PER_TILE;
-      const partNote = partTiles ? ` Part pay: ${partTiles} joined ${partTiles === 1 ? 'tile' : 'tiles'} on the last grid (+$${partTiles * PLUMBER_PAY_PER_TILE}).` : '';
+      const partNote = partTiles ? ` Part pay: ${partTiles} joined ${partTiles === 1 ? 'tile' : 'tiles'} on the last grid (+$${(partTiles * PLUMBER_PAY_PER_TILE).toFixed(2)}).` : '';
       onDone({ earnings, summary: `You fixed ${solvedCount} ${solvedCount === 1 ? 'route' : 'routes'}.${partNote}` });
     }
 

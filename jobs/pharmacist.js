@@ -1,6 +1,6 @@
 // Pharmacist job (§8): combine vials using the recipe sheet until you make the goal vial.
 // Vials aren't used up when mixed, so a starting vial can go into several recipes.
-const PHARMACIST_PAY_PER_RECIPE = 28; // §7.2: longer recipe chains pay more
+const PHARMACIST_PAY_PER_RECIPE = 15.40; // 11-05 playtest: cut to ~55% with the other jobs. §7.2: longer recipe chains pay more
 // Part pay at the whistle: each needed mix already made pays the same rate, so extra seconds (§7.3) always count.
 const PHARMACIST_START_VIALS = ['A', 'B', 'C'];
 const PHARMACIST_ORDER_STEPS = [2, 3]; // recipes per order: first order, then every later one (kept short on purpose)
@@ -75,7 +75,7 @@ const Pharmacist = {
     'The recipe sheet shows which two vials mix into a new one, for example A + B = D.',
     'Tap two of your vials to mix them. You keep both vials and get the new one too.',
     'Some orders need a few mixes in a row, and one recipe on the sheet is a decoy you don\'t need.',
-    `Make the goal vial to fill the order. You earn $${PHARMACIST_PAY_PER_RECIPE} for each mix the order needs.`,
+    `Make the goal vial to fill the order. You earn $${PHARMACIST_PAY_PER_RECIPE.toFixed(2)} for each mix the order needs.`,
     'If time runs out mid-order, you\'re still paid for each needed mix you made. Decoys pay nothing.'
   ],
   howToFrames: 8,
@@ -190,7 +190,7 @@ const Pharmacist = {
         earnings += pay;
         solvedCount += 1;
         part('solved').textContent = solvedCount;
-        part('message').textContent = `You made ${out}! Order filled: +$${pay}. Here's the next order.`;
+        part('message').textContent = `You made ${out}! Order filled: +$${pay.toFixed(2)}. Here's the next order.`;
         nextPuzzle();
         return;
       }
@@ -214,7 +214,7 @@ const Pharmacist = {
       const needed = neededVials(puzzle.recipes, puzzle.goal);
       const partMixes = owned.filter((vial) => needed.has(vial)).length;
       earnings += partMixes * PHARMACIST_PAY_PER_RECIPE;
-      const partNote = partMixes ? ` Part pay: ${partMixes} needed ${partMixes === 1 ? 'mix' : 'mixes'} on the last order (+$${partMixes * PHARMACIST_PAY_PER_RECIPE}).` : '';
+      const partNote = partMixes ? ` Part pay: ${partMixes} needed ${partMixes === 1 ? 'mix' : 'mixes'} on the last order (+$${(partMixes * PHARMACIST_PAY_PER_RECIPE).toFixed(2)}).` : '';
       onDone({ earnings, summary: `You filled ${solvedCount} ${solvedCount === 1 ? 'order' : 'orders'}.${partNote}` });
     }
 

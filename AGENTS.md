@@ -16,7 +16,7 @@ Full design spec (source of truth for all mechanics): @docs/avasary_design_spec.
 - Hierarchy: Account → Block (Mayor + Residents) → Session/Workday. One Block code, used once per student; Workdays start from a waiting room. No session codes.
 - Bad-luck absorption order: wallet → bank by default, and the student may choose bank → wallet instead (they can't refuse the charge). Then debt (only if credit system on) → hard floor of 0. Balance never goes negative; unpayable charges are waived. *(Team decision 2026-10-30; overrides §11.3 and §12 until the spec is updated.)*
 - The Mayor sets emergencies for each Workday: off, sometimes or always. *(Team decision 2026-10-30; overrides §12 until the spec is updated.)*
-- Savings: the bank is called "Savings account" in the game. Paying a bill from it costs a $10 withdrawal fee. Savings grow 10% at the end of every 3rd Workday, and money carries over between Workdays. A "lost wallet" event takes wallet cash only. *(Team decision 2026-11-05; overrides "interest-free" in §7.2 until the spec is updated.)*
+- Savings: the bank is called "Savings account" in the game. Paying a bill from it costs a $10 withdrawal fee. Savings grow 5% at the end of every Workday, and money carries over between Workdays. A "lost wallet" event takes wallet cash only. *(Team decision 2026-11-05; overrides "interest-free" in §7.2 until the spec is updated.)*
 - Credit system is an **educator toggle, off by default**. Loans: fixed total owed (principal + rate), repaid by garnishing earnings (20% base + rate). No compounding, no accrual ticks.
 - Food & Shelter is a **yield multiplier** on per-answer payout (tokens or seconds), not a flat bonus.
 - Residents see each other's housing and location only — never balances, debt, or a leaderboard.
@@ -38,7 +38,7 @@ Mayor and Resident are separate portals. There's no backend, so both run in one 
 
 - When the spec is ambiguous, ask rather than guess. Known flag: §11.5 borrowing limit is read as *greater of* 25% of bank or $50 — confirm before relying on it.
 - `avasary_demo.html` (village + daily tasks build) is superseded. Do not build on it.
-- Keep friction timers (~5s between questions, ~15s on job swap) and loan/bankruptcy numbers as tunable constants, not hardcoded literals. *(Team decision 2026-11-03: the question gap is 0 for now.)*
+- Keep friction timers (~5s between questions, ~15s on job swap) and loan/bankruptcy numbers as tunable constants, not hardcoded literals. *(Team decisions: the question gap is 0 for now (2026-11-03), and the job swap is 5s (2026-11-05).)*
 - Cite the spec section (e.g. §13.2) in comments when implementing a mechanic.
 
 ## How to run
@@ -57,8 +57,9 @@ Plain HTML, CSS and JavaScript. There is no build step and nothing to install.
 | `docs/avasary_design_spec.md` | Design spec, the source of truth for all mechanics |
 | `docs/claude_code_game_request.md` | Request for the portals and the three-job lineup |
 | `docs/Judging_Rubric.md` | FinTech challenge judging rubric (lightning demo Nov 13, Final Demo Day Nov 18) |
+| `docs/FinTech-RockyTop-LightningDemo-Student-Guide.md` | Lightning demo event guide: 10-minute demos (4 min ours, then judges play and ask) |
 | `docs/rubric_feedback.md` | How the project stands against the rubric, and the plan for both demo dates |
-| `docs/demo_materials.md` | Draft 2-minute demo script and "How we built it with AI" slide text |
+| `docs/demo_materials.md` | Lightning demo plan (4-minute script, judge Q&A answers) and "How we built it with AI" slide text |
 | `logs/` | Session logs, one file per work session (see `logs/README.md`) |
 | `AGENTS.md` | This file: instructions for agents |
 | `CLAUDE.md` | Imports this file for Claude Code. Don't add anything else to it. |
