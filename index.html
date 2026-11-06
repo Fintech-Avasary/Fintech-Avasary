@@ -151,7 +151,6 @@
       50% { transform: translateY(0) rotate(10deg); }
     }
     @media (prefers-reduced-motion: reduce) { #title-smokey { animation: none; } }
-    .title-question { text-align: center; }
     .vial, .vial-shelf button.vial { border-radius: 0; }
     canvas { image-rendering: pixelated; }
 
@@ -210,7 +209,6 @@
         <h1 class="game-title">Avasary</h1>
         <canvas id="title-smokey" width="144" height="144" role="img" aria-label="Smokey, the Rocky Top hound, dancing"></canvas>
       </div>
-      <p class="muted title-question">Who is using this screen?</p>
       <button type="button" id="choose-mayor" class="mayor">
         Mayor portal
         <span>For educators: run the Block and start the Workday</span>
@@ -294,7 +292,7 @@
             <label><input type="radio" name="shirt" value="blue"> Blue</label>
             <label><input type="radio" name="shirt" value="red"> Red</label>
             <label><input type="radio" name="shirt" value="green"> Green</label>
-            <label><input type="radio" name="shirt" value="purple"> Purple</label>
+            <label><input type="radio" name="shirt" value="orange"> Orange</label>
             <label><input type="radio" name="shirt" value="vols"> "Go Vols" T-shirt</label>
           </fieldset>
           <label><input type="checkbox" name="hat"> Orange hat</label>
@@ -539,23 +537,23 @@
     console.assert(emergencyHappens('always', 0.99) && !emergencyHappens('off', 0) && emergencyHappens('sometimes', 0.49) && !emergencyHappens('sometimes', 0.5), 'Mayor emergency setting');
 
     // ---- Wardrobe (§7.2 Customization, free for now): the look is remembered in this browser, like the save percent. ----
-    const SHIRTS = { blue: '#2f3e8f', red: '#a33b2c', green: '#1f6f54', purple: '#7a4fa0', vols: '#ff8200' };
+    const SHIRTS = { blue: '#2f3e8f', red: '#a33b2c', green: '#1f6f54', orange: '#ff8200', vols: '#ff8200' };
     const SKINS = { person: PLAYER_SPRITE, hound: [ // same rows as the Resident: eyes on 5-6, shirt on 10-12, legs on 13-15
-      '.....wwwwww.....',
-      '...wwwwwwwwww...',
-      '..wwwwwwwwwwww..',
-      '.ddwwwwwwwwwwdd.',
-      'dddwwwwwwwwwwddd',
-      'dddweewwwweewddd',
-      'dddweewwwweewddd',
-      '.ddwwwkkkkwwwdd.',
-      '..dwwwwkkwwwwd..',
-      '...wwwwwwwwww...',
+      '.....ffwwff.....', // black fur (f) with a white line down the middle and orange eyebrows (o)
+      '...ffffwwffff...',
+      '..fffffwwfffff..',
+      '.ddffffwwffffdd.',
+      'dddfoofwwfoofddd',
+      'dddfwwfwwfwwfddd',
+      'dddfwefwwfewfddd',
+      '.ddfffkkkkfffdd.',
+      '..dfffwkkwfffd..',
+      '...ffffwwffff...',
       '..bbbbbbbbbbbb..',
       '.bbbbbbbbbbbbbb.',
-      '.wbbbbbbbbbbbbw.',
-      '...wwwwwwwwww...',
-      '...wwww..wwww...',
+      '.fbbbbbbbbbbbbf.',
+      '...ffffffffff...',
+      '...ffff..ffff...',
       '..ddddd..ddddd..'
     ] };
     const LOOK_KEY = 'avasary.look';
@@ -584,7 +582,7 @@
     const recolor = (rows, from, to, swap) => { for (let r = from; r <= to; r++) rows[r] = [...rows[r]].map((key, c) => (typeof swap === 'function' ? swap(key, r, c) : swap[key]) || key).join(''); };
     const WEAR = {
       jacket: (rows) => { paint(rows, 10, 2, 'ooo'); paint(rows, 10, 11, 'ooo'); paint(rows, 11, 1, 'oooo'); paint(rows, 11, 11, 'oooo'); paint(rows, 12, 2, 'ooo'); paint(rows, 12, 11, 'ooo'); }, // open, the shirt shows
-      jumpsuit: (rows) => recolor(rows, 10, 14, (key, r, c) => ('bpw'.includes(key) ? (((r >> 1) + (c >> 1)) % 2 ? 'w' : 'o') : null)), // 2x2 checkerboard
+      jumpsuit: (rows) => recolor(rows, 10, 14, (key, r, c) => ('bpwf'.includes(key) ? (((r >> 1) + (c >> 1)) % 2 ? 'w' : 'o') : null)), // 2x2 checkerboard
       maid: (rows) => {
         paint(rows, 1, 4, 'wwwwwwww'); // headband
         recolor(rows, 10, 12, { b: 'k' });
@@ -594,7 +592,7 @@
       },
       cat: (rows) => {
         rows[0] = '..gg........gg..'; paint(rows, 1, 2, 'grg'); paint(rows, 1, 11, 'grg'); // ears
-        recolor(rows, 10, 14, { b: 'g', p: 'g', w: 'g' });
+        recolor(rows, 10, 14, { b: 'g', p: 'g', w: 'g', f: 'g' });
       },
       jeans: (rows) => recolor(rows, 13, 14, { p: 'j' }),
       shorts: (rows) => { recolor(rows, 13, 13, { p: 'c' }); recolor(rows, 14, 14, { p: 's' }); },
@@ -615,7 +613,7 @@
       if (hat) rows = ['....oooooooo....', '...oooooooooo...', '.oooooooooooooo.', ...rows.slice(3)];
       return step ? stepSprite(rows) : rows;
     }
-    const lookColors = ({ shirt }) => ({ ...SPRITE_COLORS, b: SHIRTS[shirt], w: '#f4f1ea', d: '#5b5f66', o: '#ff8200',
+    const lookColors = ({ shirt }) => ({ ...SPRITE_COLORS, b: SHIRTS[shirt], w: '#f4f1ea', d: '#2a2a2a', f: '#111111', o: '#ff8200',
       g: '#9aa0a6', j: '#4a6fa5', c: '#c2a36b', m: '#c9a227' });
     const isSquare = (rows) => rows.length === 16 && rows.every((row) => row.length === 16);
     console.assert(isSquare(SKINS.hound) && lookSprite({ shirt: 'vols', hat: true, skin: 'person' })[11] === '.bbbbwwwwwwbbbb.'
