@@ -44,7 +44,7 @@
     fieldset { margin: 24px 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; }
     legend { padding: 0 4px; font-weight: 600; }
     label { display: block; padding: 6px 0; cursor: pointer; }
-    input[type="text"], input[type="number"] { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid var(--muted); border-radius: 8px; font: inherit; }
+    input[type="text"], input[type="number"], input[type="password"] { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid var(--muted); border-radius: 8px; font: inherit; }
     button {
       width: 100%;
       padding: 12px;
@@ -62,6 +62,8 @@
     #answers button { margin-top: 8px; }
     #portal-choice button { margin-top: 16px; }
     #portal-choice button span { display: block; font-weight: 400; }
+    .admin-link-row { margin: 16px 0 0; text-align: center; }
+    #portal-choice .admin-link { width: auto; margin: 0; padding: 4px; background: none; border: none; box-shadow: none; color: var(--muted); text-decoration: underline; font-family: system-ui, sans-serif; font-size: 0.875rem; }
     #job-choice button, #continue, #money-done, #pay-emergency { margin-top: 12px; }
     canvas { display: block; width: 100%; height: auto; margin: 8px 0; border: 1px solid var(--line); }
     .job-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 8px; touch-action: manipulation; }
@@ -157,10 +159,10 @@
     canvas { image-rendering: pixelated; }
 
     /* 1. Number and text boxes: pixel look, no spinner arrows (the wheel is handled in the script). */
-    input[type="text"], input[type="number"] { background: #fbf8f1; box-shadow: inset 3px 3px 0 var(--line); font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 0.8rem; line-height: 1.6; }
+    input[type="text"], input[type="number"], input[type="password"] { background: #fbf8f1; box-shadow: inset 3px 3px 0 var(--line); font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 0.8rem; line-height: 1.6; }
     input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
     input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-    input[type="text"]:focus-visible, input[type="number"]:focus-visible { outline: 3px solid #ff8200; outline-offset: 2px; }
+    input[type="text"]:focus-visible, input[type="number"]:focus-visible, input[type="password"]:focus-visible { outline: 3px solid #ff8200; outline-offset: 2px; }
 
     /* 2. Hover: colored buttons go lighter, light buttons go darker. Mouse only, so taps on phones don't stick. */
     @media (hover: hover) {
@@ -211,18 +213,25 @@
         <h1 class="game-title">Avasary</h1>
         <canvas id="title-smokey" width="144" height="144" role="img" aria-label="Smokey, the Rocky Top hound, dancing"></canvas>
       </div>
-      <button type="button" id="choose-mayor" class="mayor">
-        Mayor portal
-        <span>For educators: run the Block and start the Workday</span>
-      </button>
-      <button type="button" id="choose-resident">
-        Resident portal
-        <span>For students: join your Block and go to work</span>
-      </button>
       <button type="button" id="quick-play" class="secondary">
         Quick play
         <span>Try it now: skip the setup, all jobs and topics, bad luck always happens</span>
       </button>
+      <button type="button" id="choose-mayor" class="mayor" hidden>
+        Mayor portal
+        <span>For educators: run the Block and start the Workday</span>
+      </button>
+      <button type="button" id="choose-resident" hidden>
+        Resident portal
+        <span>For students: join your Block and go to work</span>
+      </button>
+      <p id="admin-link-row" class="admin-link-row"><button type="button" id="show-admin" class="admin-link">If you're an admin, click here</button></p>
+      <form id="admin-form" hidden>
+        <label for="admin-password">Admin password</label>
+        <input type="password" id="admin-password" autocomplete="off">
+        <button type="submit" class="secondary">Unlock portals</button>
+        <p id="admin-error" class="error" role="alert"></p>
+      </form>
     </section>
 
     <section id="mayor-portal" hidden>
@@ -288,7 +297,7 @@
             <li>Resident B</li>
             <li>Resident C</li>
           </ul>
-          <button type="button" class="secondary" id="demo-to-mayor">Demo only: switch to Mayor portal</button>
+          <button type="button" class="secondary" id="demo-to-mayor" hidden>Demo only: switch to Mayor portal</button>
         </div>
         <form class="wardrobe" id="wardrobe" aria-labelledby="wardrobe-title">
           <h2 id="wardrobe-title">Wardrobe</h2>
@@ -385,6 +394,7 @@
   <script src="jobs/pharmacist.js"></script>
   <script>
     const BLOCK_CODE = 'MAPLE1';
+    const ADMIN_PASSWORD_SHA256 = 'db93b101001a6901d7eab1f3be57fb629cdd99d6766abde5153f41c945d8ea27'; // admin password's hash, not the password
     // Money is in dollars with cents. Round every sum to the cent so float drift (0.1 + 0.2) never shows or breaks a check.
     const roundCents = (x) => Math.round(x * 100) / 100;
     const floorCents = (x) => Math.floor(Math.round(x * 10000) / 100) / 100; // round down, ignoring float noise below 0.01 cent
@@ -1279,6 +1289,24 @@
       saveLook();
       drawLookPreview();
       playScene(el('waiting-scene'), drawWaitingRoom); // redraw now, also under reduced motion
+    });
+    // shortcut: no login yet, so one shared admin password unlocks the portals, checked in the browser against its SHA-256
+    // (only the hash is in the source). A coder can bypass it; replace with the account's educator flag (§3.1) once login exists.
+    el('show-admin').addEventListener('click', () => {
+      el('admin-link-row').hidden = true;
+      el('admin-form').hidden = false;
+      el('admin-password').focus();
+    });
+    el('admin-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(el('admin-password').value));
+      const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+      if (hash !== ADMIN_PASSWORD_SHA256) {
+        el('admin-error').textContent = 'Wrong password.';
+        return;
+      }
+      ['choose-mayor', 'choose-resident', 'demo-to-mayor'].forEach((id) => { el(id).hidden = false; });
+      el('admin-form').hidden = true;
     });
     el('choose-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
     el('choose-resident').addEventListener('click', showResidentPortal);

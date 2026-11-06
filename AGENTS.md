@@ -45,7 +45,7 @@ Mayor and Resident are separate portals. There's no backend, so both run in one 
 
 Plain HTML, CSS and JavaScript. There is no build step and nothing to install.
 
-- Open `index.html` in a web browser.
+- Open `index.html` in a web browser. Players see Quick play. The Mayor and Resident portals unlock with the admin password (ask the team; only its SHA-256 is in `index.html`, so never write the password in files or logs).
 - After changing a file, refresh with Ctrl+F5. A plain refresh can keep old copies of the files in `jobs/`.
 
 ## Project layout
