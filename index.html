@@ -104,8 +104,10 @@
     .answer-wrong { color: var(--error); }
     .money-table tr.gain td { color: var(--accent); }
     .money-table tr.loss td { color: var(--error); }
+    .money-table tr.debt td { font-weight: 700; } /* red comes from .loss */
     .float-up.float-error { color: var(--error); }
     .upgrade-pick { display: flex; gap: 12px; align-items: center; margin: 12px 0; padding: 16px; border: 3px solid var(--ink); background: #fff3c4; font-size: 1.125rem; font-weight: 700; box-shadow: 3px 3px 0 var(--ink); }
+    .upgrade-pick[hidden] { display: none; } /* display: flex would otherwise beat the hidden attribute */
     .upgrade-pick input { width: 28px; height: 28px; flex: 0 0 auto; }
     .upgrade-pick:has(input:checked) { background: #ffd966; }
     .upgrade-pick:has(input:disabled) { opacity: 0.6; }
@@ -252,6 +254,10 @@
           <label><input type="radio" name="emergency" value="sometimes" checked> Sometimes (50% chance)</label>
           <label><input type="radio" name="emergency" value="always"> Always</label>
         </fieldset>
+        <fieldset>
+          <legend>Borrowing (credit system)</legend>
+          <label><input type="checkbox" name="credit" checked> Residents can borrow when they can't pay a bad-luck bill</label>
+        </fieldset>
         <button type="submit" class="mayor">Start Workday</button>
       </form>
       <button type="button" class="secondary" data-go-to-choice>Back to portal choice</button>
@@ -308,7 +314,7 @@
 
     <section id="workday" hidden>
       <h1 id="workday-title"></h1>
-      <p>Wallet: <strong id="wallet">$0.00</strong> &middot; Savings account: <strong id="bank">$0.00</strong></p>
+      <p>Wallet: <strong id="wallet">$0.00</strong> &middot; Savings account: <strong id="bank">$0.00</strong><span id="loan-line" hidden> &middot; Loan owed: <strong id="loan"></strong></span></p>
       <p id="time-line" aria-live="polite">Work time earned: <strong id="time-earned">0</strong> seconds</p>
 
       <div id="question-area">
@@ -357,6 +363,7 @@
             <label><input type="radio" name="pay-order" value="wallet" checked> Wallet first, then savings account (fee only if savings are used)</label>
             <label><input type="radio" name="pay-order" value="bank"> Savings account first, then wallet (fee)</label>
           </fieldset>
+          <label class="upgrade-pick" id="loan-pick" hidden><input type="checkbox" id="take-loan"> <span id="loan-text"></span></label>
           <button type="button" id="pay-emergency"></button>
         </div>
         <div id="summary" hidden>
@@ -395,20 +402,42 @@
     const UPGRADE_MULTIPLIER = 1.2; // §7.3
     // §12: one unplanned bad-luck event per Workday, picked at random, each with its own cost range (team decision 2026-11-05).
     // Small costs are everyday asks; big ones top out near one strong round (~$450 in the 11-03 playtest).
-    // walletOnly: a lost wallet takes the cash you carry and can never touch the savings account.
+    // walletOnly: a lost wallet takes the cash you carry (never savings), then bills the replacement fee like any other bill.
     const BAD_LUCK_EVENTS = [
       { name: 'Popcorn money', min: 10, max: 20, step: 5, text: (cost) => `Your little sibling asks you for ${money(cost)} to buy some popcorn.` },
       { name: 'Gift for Grandma',min: 40, max: 100, step: 10, text: (cost) => `It's your grandma's birthday. You buy her a gift for ${money(cost)}.` },
       { name: 'Bike repair', min: 150, max: 300, step: 10, text: (cost) => `Your bike broke down and you need it for work. The repair costs ${money(cost)}.` },
       { name: 'Vet bill', min: 200, max: 400, step: 10, text: (cost) => `Your dog fell down the stairs while playing and broke a tooth. The vet bill is ${money(cost)}.` },
-      { name: 'Lost wallet', walletOnly: true, text: (cost) => `You lost your wallet! The ${money(cost)} of cash in it is gone. Money in your savings account is safe.` }
+      { name: 'Lost wallet', walletOnly: true, text: (cash) => (cash ? `You lost your wallet! The ${money(cash)} of cash in it is gone.` : 'You lost your wallet! Luckily it was empty.')
+        + ` You also pay ${money(LOST_WALLET_REPLACEMENT_FEE)} to replace your ID and credit card. You can't skip it.` }
     ];
     const randomCost = ({ min, max, step }, roll) => min + Math.floor(roll * ((max - min) / step + 1)) * step;
     console.assert(randomCost(BAD_LUCK_EVENTS[3], 0) === 200 && randomCost(BAD_LUCK_EVENTS[3], 0.9999) === 400
       && randomCost(BAD_LUCK_EVENTS[0], 0.5) % 5 === 0, 'event cost spans its range in steps');
     const EMERGENCY_SOMETIMES_CHANCE = 0.5;
+    const LOST_WALLET_REPLACEMENT_FEE = 100; // team decision 2026-11-06: new ID and credit card, paid like any other bill
     const LOST_WALLET_MAX = 200; // a wallet holds at most this much cash, so carried-over wallets can't lose everything (11-05 test lost $1,280)
     const SAVINGS_WITHDRAWAL_FEE = 10; // team decision 2026-11-05: the cost of pulling savings out for a bill
+
+    // §13: credit system, a Mayor toggle. Team decision 2026-11-06: on by default, only the Mayor turns it off. Loans only cover a bad-luck bill the Resident can't pay (team decision 2026-11-06).
+    const LOAN_RATE = 0.2; // §13.1 baseline 15-20%
+    const LOAN_RATE_WITH_SAVINGS = 0.1; // §11.4: any savings drop the rate to 10%
+    const LOAN_GARNISH_BASE = 0.2; // §13.2: share of each payday = 20% + rate
+    const LOAN_MIN_LIMIT = 50; // §11.5 read as the greater of 25% of savings or $50 (confirmed 2026-11-06)
+    const LOAN_SAVINGS_SHARE = 0.25;
+    // §13.2: a fixed total owed (borrowed + rate), repaid from paydays. Nothing grows.
+    function loanOffer(shortfall, bank) {
+      if (shortfall <= 0) return null;
+      const rate = bank > 0 ? LOAN_RATE_WITH_SAVINGS : LOAN_RATE;
+      const amount = Math.min(shortfall, Math.max(floorCents(bank * LOAN_SAVINGS_SHARE), LOAN_MIN_LIMIT));
+      return { amount, rate, owed: roundCents(amount * (1 + rate)), garnish: roundCents(LOAN_GARNISH_BASE + rate) };
+    }
+    const garnishFrom = (earnings, loan) => (loan ? Math.min(loan.owed, roundCents(earnings * loan.garnish)) : 0);
+    console.assert(loanOffer(0, 0) === null, 'no shortfall, no loan');
+    console.assert(JSON.stringify(loanOffer(200, 0)) === JSON.stringify({ amount: 50, rate: 0.2, owed: 60, garnish: 0.4 }), 'no savings: $50 at 20%, 40% garnished');
+    console.assert(loanOffer(30, 0).amount === 30, 'only borrow what is short');
+    console.assert(loanOffer(500, 400).amount === 100 && loanOffer(500, 400).owed === 110 && loanOffer(500, 400).garnish === 0.3, 'savings: 25% of savings at 10%');
+    console.assert(garnishFrom(50, { owed: 120, garnish: 0.4 }) === 20 && garnishFrom(500, { owed: 60, garnish: 0.4 }) === 60 && garnishFrom(50, null) === 0, '§13.2 worked example and payoff cap');
 
     // Want shop after Round 2 payday: wallet money only (team decision 2026-11-05). §7.2: realistic price order.
     // Prices end in .99 and come with a sales pitch, like real ads (team decision 2026-11-05).
@@ -490,14 +519,14 @@
     // §3.2: wallet, savings and upgrades carry over between Workdays (in memory only, no persistence yet).
     const game = {
       emergencySetting: null, joined: false, availableJobs: [], foodShelterMultiplier: 1,
-      wallet: 0, bank: 0, workday: 0
+      wallet: 0, bank: 0, workday: 0, creditOn: false, loan: null // loan: { owed, garnish }, carries over until paid
     };
     // Everything that starts fresh each Workday.
     function resetWorkday() {
       Object.assign(game, {
         workday: game.workday + 1, lastJob: null, round: 0, questions: [], questionIndex: 0, workSeconds: 0,
         startWallet: game.wallet, startBank: game.bank,
-        totalEarned: 0, earnedByRound: [], spentOnUpgrade: 0, spentOnWants: 0, paidForEmergency: 0, paidFromBank: 0, withdrawalFee: 0, waived: 0, interest: 0, emergency: null
+        totalEarned: 0, earnedByRound: [], spentOnUpgrade: 0, spentOnWants: 0, paidForEmergency: 0, paidFromBank: 0, withdrawalFee: 0, waived: 0, interest: 0, emergency: null, cashLost: 0, borrowed: 0, loanRepaid: 0
       });
     }
     const el = (id) => document.getElementById(id);
@@ -803,6 +832,8 @@
     function showMoney() {
       el('wallet').textContent = money(game.wallet);
       el('bank').textContent = money(game.bank);
+      el('loan-line').hidden = !game.loan;
+      if (game.loan) el('loan').textContent = money(game.loan.owed);
     }
 
     function startRound() {
@@ -962,11 +993,19 @@
     // §7.2: every job pays its performance-based earnings into the same wallet.
     function finishJob({ earnings: rawEarnings, summary }) {
       const earnings = roundCents(rawEarnings);
-      game.wallet = roundCents(game.wallet + earnings);
+      // §13.2: part of every payday goes to the loan until it's paid off.
+      const repaid = garnishFrom(earnings, game.loan);
+      if (game.loan) {
+        game.loan.owed = roundCents(game.loan.owed - repaid);
+        if (game.loan.owed <= 0) game.loan = null;
+      }
+      game.loanRepaid = roundCents(game.loanRepaid + repaid);
+      game.wallet = roundCents(game.wallet + earnings - repaid);
       game.totalEarned = roundCents(game.totalEarned + earnings);
       game.earnedByRound.push({ earnings, work: game.roundWork });
       showMoney();
-      el('payout-text').replaceChildren(`${summary} `, Object.assign(document.createElement('strong'), { textContent: `You earned ${money(earnings)}.` }));
+      el('payout-text').replaceChildren(`${summary} `, Object.assign(document.createElement('strong'), { textContent: `You earned ${money(earnings)}.` }),
+        repaid ? ` ${money(repaid)} went to your loan${game.loan ? '' : ', and it is paid off'}.` : '');
       el('payout').hidden = false;
 
       // §15: the save-or-spend choice comes after every round, so an upgrade pays off before the emergency.
@@ -1094,31 +1133,45 @@
       el('payout').hidden = true;
       const event = BAD_LUCK_EVENTS[Math.floor(Math.random() * BAD_LUCK_EVENTS.length)];
       game.emergency = event;
-      game.emergencyCost = event.walletOnly ? Math.min(game.wallet, LOST_WALLET_MAX) : randomCost(event, Math.random());
-      el('emergency-text').textContent = event.walletOnly && game.wallet === 0
-        ? 'You lost your wallet! Luckily it was empty, and your savings account is safe.'
-        : event.walletOnly ? event.text(game.emergencyCost) : `${event.text(game.emergencyCost)} You can't skip it.`;
+      game.cashLost = event.walletOnly ? Math.min(game.wallet, LOST_WALLET_MAX) : 0;
+      game.emergencyCost = event.walletOnly ? LOST_WALLET_REPLACEMENT_FEE : randomCost(event, Math.random());
+      el('emergency-text').textContent = event.walletOnly ? event.text(game.cashLost) : `${event.text(game.emergencyCost)} You can't skip it.`;
+      const wallet = roundCents(game.wallet - game.cashLost); // what's left to pay the bill with
       const savingsCanPay = game.bank > SAVINGS_WITHDRAWAL_FEE;
-      el('pay-order').hidden = event.walletOnly || !(game.wallet > 0 && savingsCanPay); // only a choice when both can pay
-      el('fee-note').textContent = !event.walletOnly && savingsCanPay
+      el('pay-order').hidden = !(wallet > 0 && savingsCanPay); // only a choice when both can pay
+      el('fee-note').textContent = savingsCanPay
         ? `Taking money out of your savings account costs a ${money(SAVINGS_WITHDRAWAL_FEE)} fee.` : '';
-      el('pay-emergency').textContent = event.walletOnly || (game.wallet === 0 && !savingsCanPay) ? 'Continue'
-        : game.wallet === 0 ? `Take it out of savings and pay (${money(SAVINGS_WITHDRAWAL_FEE)} fee)` : 'Pay the bill';
+      // §13.1: when wallet and savings fall short, the Resident may borrow the rest. The numbers are spelled out, not just the rate.
+      const shortfall = roundCents(game.emergencyCost - wallet - (savingsCanPay ? game.bank - SAVINGS_WITHDRAWAL_FEE : 0));
+      game.loanOffer = game.creditOn && !game.loan ? loanOffer(shortfall, game.bank) : null;
+      const offer = game.loanOffer;
+      el('take-loan').checked = false;
+      el('loan-pick').hidden = !offer;
+      if (offer) {
+        el('loan-text').textContent = `You're ${money(shortfall)} short. Borrow ${money(offer.amount)}${offer.amount < shortfall ? ' (the most you can borrow)' : ''}?`
+          + ` You'll pay back ${money(offer.owed)}: ${Math.round(offer.garnish * 100)}% of every payday goes to the loan until it's paid.`;
+      } else if (game.creditOn && game.loan && shortfall > 0) {
+        el('fee-note').textContent += ` You can't borrow: you still owe ${money(game.loan.owed)} on your loan.`;
+      }
+      el('pay-emergency').textContent = wallet === 0 && !savingsCanPay && !offer ? 'Continue'
+        : wallet === 0 && savingsCanPay ?`Take it out of savings and pay (${money(SAVINGS_WITHDRAWAL_FEE)} fee)` : 'Pay the bill';
       el('emergency').hidden = false;
     }
 
     function payEmergency() {
       const event = game.emergency;
       const bankFirst = document.querySelector('input[name="pay-order"]:checked').value === 'bank';
-      const { fromWallet, fromBank, fee, waived } = event.walletOnly
-        ? { fromWallet: game.emergencyCost, fromBank: 0, fee: 0, waived: 0 }
-        : payCharge(game.wallet, game.bank, game.emergencyCost, bankFirst, SAVINGS_WITHDRAWAL_FEE);
+      game.wallet = roundCents(game.wallet - game.cashLost);
+      const { fromWallet, fromBank, fee, waived } = payCharge(game.wallet, game.bank, game.emergencyCost, bankFirst, SAVINGS_WITHDRAWAL_FEE);
       game.wallet = roundCents(game.wallet - fromWallet);
       game.bank = roundCents(game.bank - fromBank - fee);
       game.paidForEmergency = roundCents(fromWallet + fromBank);
       game.paidFromBank = fromBank;
       game.withdrawalFee = fee;
-      game.waived = waived;
+      // The loan pays the part that would have been waived; anything over the limit is still waived (§12).
+      game.borrowed = game.loanOffer && el('take-loan').checked ? Math.min(game.loanOffer.amount, waived) : 0;
+      if (game.borrowed) game.loan = { owed: roundCents(game.borrowed * (1 + game.loanOffer.rate)), garnish: game.loanOffer.garnish };
+      game.waived = roundCents(waived - game.borrowed);
       showMoney();
       el('emergency').hidden = true;
       finishWorkday();
@@ -1135,11 +1188,17 @@
     }
 
     // The one line that ties the Workday's bad luck back to saving (§12: the sharpest teaching moment).
-    function lessonFor({ event, fromWallet, fee, waived, spentOnWants }) {
+    function lessonFor({ event, fromWallet, fee, waived, spentOnWants, borrowed = 0, loan = null, cashLost = 0 }) {
       if (!event) return "No bad luck this time. Money in your savings account means you're ready when it comes.";
       if (event.walletOnly) {
-        return fromWallet ? `The ${money(fromWallet)} you lost was cash in your wallet. If it had been in your savings account, it would still be yours.`
-          : 'Your wallet was empty when you lost it, so you lost nothing.';
+        return (cashLost ? `The ${money(cashLost)} you lost was cash in your wallet. If it had been in your savings account, it would still be yours.`
+          : 'Your wallet was empty when you lost it, so no cash was lost.')
+          + ` Replacing your ID and credit card cost ${money(LOST_WALLET_REPLACEMENT_FEE)}${borrowed ? `, and you borrowed ${money(borrowed)} to pay it` : ''}.`;
+      }
+      if (borrowed) {
+        return `You borrowed ${money(borrowed)} for the ${event.name.toLowerCase()}.`
+          + (loan ? ` You still owe ${money(loan.owed)}, and ${Math.round(loan.garnish * 100)}% of every payday goes to it until it's paid.` : '')
+          + (waived ? ` ${money(waived)} more was waived.` : '') + ' Savings would have paid it with no loan.';
       }
       if (waived) {
         return `You were ${money(waived)} short for the ${event.name.toLowerCase()}.${spentOnWants ? ` You spent ${money(spentOnWants)} on wants today.` : ''}`
@@ -1149,11 +1208,15 @@
       return `Your wallet paid for the ${event.name.toLowerCase()}. Cash in a wallet can be lost, so savings are the safer place for an emergency fund.`;
     }
     console.assert(lessonFor({ event: { name: 'Vet bill' }, fromWallet: 50, fee: 0, waived: 150, spentOnWants: 200 }).includes('$150.00 short')
-      && lessonFor({ event: { name: 'Lost wallet', walletOnly: true }, fromWallet: 80 }).includes('$80.00')
+      && lessonFor({ event: { name: 'Lost wallet', walletOnly: true }, cashLost: 80 }).includes('$80.00')
+      && lessonFor({ event: { name: 'Lost wallet', walletOnly: true }, cashLost: 0 }).includes('$100.00')
       && lessonFor({ event: { name: 'Vet bill' }, fromWallet: 0, fee: 10, waived: 0 }).includes('emergency fund')
+      && lessonFor({ event: { name: 'Vet bill' }, borrowed: 50, loan: { owed: 60, garnish: 0.4 } }).includes('$60.00')
       && lessonFor({}).startsWith('No bad luck'), 'summary lesson matches what happened');
 
     const minusDollars = (amount) => (amount ? `-${money(amount)}` : money(0));
+    const signedMoney = (amount) => (amount < 0 ? minusDollars(-amount) : money(amount));
+    console.assert(signedMoney(-10) === '-$10.00' && signedMoney(5) === '$5.00', 'negative totals read -$10.00');
 
     function showSummary() {
       el('workday-title').textContent = `Workday ${game.workday} summary`;
@@ -1168,13 +1231,18 @@
         ['Total earned', `+${money(game.totalEarned)}`, 'total'],
         ['Spent on Food & Shelter', minusDollars(game.spentOnUpgrade)],
         ['Spent on wants', minusDollars(game.spentOnWants)],
+        ...(game.cashLost ? [['Cash lost with your wallet', minusDollars(game.cashLost)]] : []),
         [game.emergency ? `Paid for bad luck (${game.emergency.name})` : 'Paid for bad luck', minusDollars(game.paidForEmergency)],
         ...(game.withdrawalFee ? [['Savings withdrawal fee', minusDollars(game.withdrawalFee)]] : []),
+        ...(game.borrowed ? [['Borrowed for the bill (a loan paid it)', money(game.borrowed)]] : []),
         ...(game.waived ? [['Bad-luck cost waived (not paid)', money(game.waived)]] : []),
+        ...(game.loanRepaid ? [['Paid to your loan from paydays', minusDollars(game.loanRepaid)]] : []),
         ...(game.interest ? [[`Savings interest (${SAVINGS_INTEREST_RATE * 100}%)`, `+${money(game.interest)}`]] : []),
         ['Wallet at the end', money(game.wallet)],
         ['Savings account at the end', money(game.bank)],
-        ['Total you have now', money(roundCents(game.wallet + game.bank)), 'total']
+        // Debt counts against what you have, so the total can go below $0 (teammate request 2026-11-06).
+        ...(game.loan ? [['Loan you still owe', minusDollars(game.loan.owed), 'debt']] : []),
+        ['Total you have now', signedMoney(roundCents(game.wallet + game.bank - (game.loan ? game.loan.owed : 0))), 'total']
       ];
       el('money-table').replaceChildren(...rows.map(([label, amount, className]) => {
         const row = document.createElement('tr');
@@ -1186,9 +1254,9 @@
         return row;
       }));
       console.assert(roundCents(game.startWallet + game.startBank + game.totalEarned + game.interest
-        - game.spentOnUpgrade - game.spentOnWants - game.paidForEmergency - game.withdrawalFee) === roundCents(game.wallet + game.bank), 'money table adds up');
+        - game.spentOnUpgrade - game.spentOnWants - game.cashLost - game.paidForEmergency - game.withdrawalFee - game.loanRepaid) ===roundCents(game.wallet + game.bank), 'money table adds up');
       el('summary-lesson').textContent = lessonFor({ event: game.emergency, fromWallet: roundCents(game.paidForEmergency - game.paidFromBank),
-        fee: game.withdrawalFee, waived: game.waived, spentOnWants: game.spentOnWants });
+        fee: game.withdrawalFee, waived: game.waived, spentOnWants: game.spentOnWants, borrowed: game.borrowed, loan: game.loan, cashLost: game.cashLost });
       el('summary').hidden = false;
     }
 
@@ -1265,6 +1333,7 @@
       el('topics-error').textContent = '';
       resetWorkday();
       game.emergencySetting = form.get('emergency');
+      game.creditOn = form.get('credit') === 'on';
       game.questions = drawQuestions(topics);
       ['summary', 'emergency', 'payout', 'results'].forEach((id) => { el(id).hidden = true; });
       el('feedback').textContent = '';
