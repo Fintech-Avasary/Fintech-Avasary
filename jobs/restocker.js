@@ -11,9 +11,29 @@ const STORE_AISLE_COLS = [2, 5, 8]; // Aisle 1, 2, 3
 const STORE_SHELF_ROWS = [1, 2, 3]; // Shelf A, B, C
 const STORE_SHELF_LETTERS = 'ABC';
 const STORE_START = { x: 0, y: 4 };
-// Pixel-art Resident: h hair, s skin, e eyes, b shirt, p pants, . empty.
-const PLAYER_SPRITE = ['..hhhh..', '.hhhhhh.', '.sesses.', '.ssssss.', 'bbbbbbbb', 'sbbbbbbs', '.pppppp.', '.pp..pp.'];
-const SPRITE_COLORS = { h: '#3b2a1a', s: '#e0a878', e: '#23302b', b: '#2f3e8f', p: '#23302b' };
+// Pixel-art Resident, 16x16 (teammate request 2026-11-05: more detail). Rows: 0-4 hair and forehead, 5-6 eyes,
+// 7 cheeks, 8 mouth, 9 chin, 10-12 shirt and hands, 13-14 pants, 15 shoes.
+// h hair, H hair shine, s skin, e eyes, w eye shine, r cheeks, n mouth, b shirt, p pants, k shoes, . empty.
+const PLAYER_SPRITE = [
+  '.....hhhhhh.....',
+  '...hhhHHhhhhh...',
+  '..hhHHhhhhhhhh..',
+  '..hhsssssssshh..',
+  '..hssssssssssh..',
+  '..sswesssswess..',
+  '..sseesssseess..',
+  '..srssssssssrs..',
+  '..sssssnnsssss..',
+  '...ssssssssss...',
+  '..bbbbbbbbbbbb..',
+  '.bbbbbbbbbbbbbb.',
+  '.sbbbbbbbbbbbbs.',
+  '...pppppppppp...',
+  '...pppp..pppp...',
+  '..kkkkk..kkkkk..'
+];
+const SPRITE_COLORS = { h: '#3b2a1a', H: '#6b4a2a', s: '#e0a878', e: '#23302b', w: '#ffffff', r: '#e8907a', n: '#9a4a3a',
+  b: '#2f3e8f', p: '#23302b', k: '#151515' };
 
 function shuffled(list) {
   const copy = [...list];
@@ -47,15 +67,30 @@ function makeRestockList() {
 
 const shelfName = (spot) => `Aisle ${spot.aisle}, Shelf ${spot.shelf}`;
 
-const PLAYER_SPRITE_STEP = [...PLAYER_SPRITE.slice(0, 7), '..pppp..']; // legs together: second walking frame
+// Second walking frame: the last two rows (legs and shoes) pulled together in the middle.
+function stepSprite(rows) {
+  return rows.map((row, i) => {
+    if (i < rows.length - 2) return row;
+    const solid = row.replace(/\./g, '');
+    const pad = (row.length - solid.length) / 2;
+    return '.'.repeat(Math.floor(pad)) + solid + '.'.repeat(Math.ceil(pad));
+  });
+}
+const PLAYER_SPRITE_STEP = stepSprite(PLAYER_SPRITE);
+console.assert(PLAYER_SPRITE.every((row) => row.length === 16) && PLAYER_SPRITE.length === 16
+  && PLAYER_SPRITE_STEP[14] === '....pppppppp....' && PLAYER_SPRITE_STEP[15] === '...kkkkkkkkkk...', 'player sprite is 16x16');
 
-// 8x8 sprite centered in the tile at tile position (x, y). Also used by the city scenes in index.html.
+// Square sprite centered in the tile at tile position (x, y), one empty pixel of margin. Also used by the city scenes in index.html.
+// Edges are rounded to whole canvas pixels so small sprites don't get seams.
 function drawResident(context, x, y, tile, sprite = PLAYER_SPRITE, colors = SPRITE_COLORS) {
-  const pixel = tile / 10;
+  const pixel = tile / (sprite.length + 2);
+  const at = (start, i) => Math.round(start + (i + 1) * pixel);
   sprite.forEach((row, sy) => [...row].forEach((key, sx) => {
     if (!colors[key]) return;
     context.fillStyle = colors[key];
-    context.fillRect(x * tile + (sx + 1) * pixel, y * tile + (sy + 1) * pixel, pixel, pixel);
+    const left = at(x * tile, sx);
+    const top = at(y * tile, sy);
+    context.fillRect(left, top, at(x * tile, sx + 1) - left, at(y * tile, sy + 1) - top);
   }));
 }
 
@@ -69,11 +104,10 @@ console.assert(adjacentShelf(0, 0) === null && !isWalkable(2, 1) && !isWalkable(
 const Restocker = {
   name: 'Restocker',
   howTo: [
-    'Your grocery list shows each item with its aisle and shelf, for example "Milk: Aisle 2, Shelf B".',
-    'Walk next to that shelf with the arrow keys or WASD (or the on-screen arrows).',
-    'Press E (or Stock) to put the item on the shelf. Stock items in list order, marked with →.',
-    'A wrong shelf earns nothing, so check the list before you stock.',
-    `When the list is done, a new list arrives. You earn $${RESTOCK_PAY_PER_ITEM.toFixed(2)} per item stocked.`
+    '📋 Read the list: "Milk: Aisle 2, Shelf B"',
+    '🚶 Walk next to that shelf',
+    '📦 Press Stock (or E)',
+    `💵 $${RESTOCK_PAY_PER_ITEM.toFixed(2)} per item`
   ],
   howToFrames: RESTOCK_DEMO_PATH.length + RESTOCK_DEMO_HOLD,
 
@@ -132,7 +166,7 @@ const Restocker = {
               role="img" aria-label="Top-down store with three aisles of shelves"></canvas>
           </div>
         </div>
-        <p data-role="message" aria-live="polite">Walk next to a shelf, then press Stock.</p>
+        <p data-role="news" class="sr-only" aria-live="polite"></p>
         <div class="job-controls">
           <button type="button" data-move="up" aria-label="Move up">&uarr;</button>
           <button type="button" data-move="left" aria-label="Move left">&larr;</button>
@@ -179,7 +213,7 @@ const Restocker = {
           });
         });
 
-        drawResident(context, player.x, player.y, STORE_TILE);
+        drawResident(context, player.x, player.y, STORE_TILE, lookSprite(look), lookColors(look)); // the wardrobe look, from index.html
       }
 
       function showChecklist() {
@@ -206,18 +240,23 @@ const Restocker = {
         }
       }
 
+      // Messages float over the store, not under it (teammate request 2026-11-05). Screen readers get them from news.
+      function say(text, isError = false) {
+        part('news').textContent = text;
+        floatText(container.querySelector('.restock-store'), text, isError); // floatText is in index.html; errors float in red
+      }
+
       function stock() {
         const spot = adjacentShelf(player.x, player.y);
         const item = items[restocked];
         if (!spot) {
-          part('message').textContent = 'Walk next to a shelf first.';
+          say('Walk next to a shelf first.', true);
         } else if (spot.aisle === item.aisle && spot.shelf === item.shelf) {
           restocked += 1;
-          part('message').textContent = `${item.name} stocked!`;
-          floatText(container.querySelector('.restock-store'), `${item.name} stocked!`); // floatText is in index.html
+          say(`${item.name} stocked!`);
           part('total').textContent = totalRestocked + restocked;
           if (restocked === items.length) {
-            part('message').textContent = `${item.name} stocked! List done, here's a new delivery.`;
+            part('news').textContent = `${item.name} stocked! List done, here's a new delivery.`;
             nextBatch();
           } else {
             showChecklist();
@@ -225,7 +264,7 @@ const Restocker = {
           }
         } else {
           // A wrong shelf costs only the time spent walking to it.
-          part('message').textContent = `Wrong shelf for ${item.name}: this is ${shelfName(spot)}.`;
+          say(`Wrong shelf for ${item.name}: this is ${shelfName(spot)}.`, true);
         }
       }
 

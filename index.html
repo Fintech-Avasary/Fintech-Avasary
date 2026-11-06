@@ -78,8 +78,9 @@
     .pipe-grid { display: grid; gap: 2px; margin: 12px 0; align-items: center; }
     main:has(.howto-layout) { max-width: 760px; }
     .howto-layout { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; } /* animation beside the steps, below on phones */
-    .howto-layout ul { flex: 1 1 260px; margin: 0; }
-    .howto-layout canvas { flex: 0 0 auto; width: 240px; max-width: 100%; margin: 0; }
+    .howto-layout ul { flex: 1 1 220px; margin: 0; padding: 0; list-style: none; font-size: 1.25rem; font-weight: 600; }
+    .howto-layout li { margin: 0 0 12px; }
+    .howto-layout canvas { flex: 0 0 auto; width: 320px; max-width: 100%; margin: 0; }
     @media (max-width: 420px) { main { padding: 16px; } } /* phones: room for 44px Plumber tiles */
     .pipe-grid button { padding: 0; aspect-ratio: 1; background: #e9e4d8; border: 1px solid var(--line); border-radius: 4px; touch-action: manipulation; }
     .pipe-grid button svg { display: block; width: 100%; height: 100%; }
@@ -101,6 +102,13 @@
     .error { color: var(--error); }
     .answer-right { color: var(--accent); }
     .answer-wrong { color: var(--error); }
+    .money-table tr.gain td { color: var(--accent); }
+    .money-table tr.loss td { color: var(--error); }
+    .float-up.float-error { color: var(--error); }
+    .upgrade-pick { display: flex; gap: 12px; align-items: center; margin: 12px 0; padding: 16px; border: 3px solid var(--ink); background: #fff3c4; font-size: 1.125rem; font-weight: 700; box-shadow: 3px 3px 0 var(--ink); }
+    .upgrade-pick input { width: 28px; height: 28px; flex: 0 0 auto; }
+    .upgrade-pick:has(input:checked) { background: #ffd966; }
+    .upgrade-pick:has(input:disabled) { opacity: 0.6; }
     .portal-badge { margin-bottom: 8px; font-size: 0.875rem; font-weight: 600; }
     /* Savings stands out on payday so first-timers don't skip it (rubric: ease of use). */
     .savings-box { background: #e3f1ea; border-color: var(--accent); }
@@ -153,6 +161,7 @@
     @keyframes float-up { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-32px); } }
     @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
     @media (prefers-reduced-motion: reduce) { .float-up { animation-name: fade-out; } }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .restock-store { position: relative; }
     .restock-store .float-up { position: absolute; left: 0; right: 0; top: 35%; margin: 0; text-align: center; font-size: 1.25rem; text-shadow: 2px 2px 0 #ffffff; }
 
@@ -168,7 +177,7 @@
     #want-shop { position: relative; margin: 24px 0; padding: 24px 12px 12px; border: 3px solid var(--ink); background: #fff7e8; box-shadow: 3px 3px 0 var(--ink); }
     #want-shop::before { content: ''; position: absolute; left: -3px; right: -3px; top: -3px; height: 16px; border: 3px solid var(--ink); background: repeating-linear-gradient(90deg, #d9480f 0 16px, #ffffff 16px 32px); }
     #want-shop h2 { margin-top: 8px; text-align: center; }
-    #want-list { display: grid; gap: 8px; margin-top: 8px; }
+    #want-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 8px; }
     #want-list label { padding: 8px; border: 2px solid var(--ink); background: var(--card); }
     #want-list label:has(input:checked) { background: #ffe8cc; }
     #want-list label:has(input:disabled) { opacity: 0.5; cursor: default; }
@@ -275,6 +284,7 @@
             <label><input type="radio" name="shirt" value="vols"> "Go Vols" T-shirt</label>
           </fieldset>
           <label><input type="checkbox" name="hat"> Orange hat</label>
+          <div id="closet"></div>
           <fieldset>
             <legend>Character</legend>
             <label><input type="radio" name="skin" value="person"> Resident</label>
@@ -308,7 +318,7 @@
           <p id="payout-text"></p>
           <div id="money-choice" hidden>
             <h2>What will you do with your wallet money?</h2>
-            <label><input type="checkbox" id="buy-upgrade"> <span id="buy-upgrade-text"></span></label>
+            <label class="upgrade-pick"><input type="checkbox" id="buy-upgrade"> <span id="buy-upgrade-text"></span></label>
             <div id="want-shop" hidden>
               <h2>The shop</h2>
               <p class="muted">Wants are paid from your wallet only. Your savings account can't pay for them.</p>
@@ -391,10 +401,22 @@
 
     // Want shop after Round 2 payday: wallet money only (team decision 2026-11-05). §7.2: realistic price order.
     // Prices end in .99 and come with a sales pitch, like real ads (team decision 2026-11-05).
+    const SHOP_ITEMS_SHOWN = 3;
     const WANTS = [
       { name: 'Sneakers', cost: 79.99, pitch: 'Actual price $120, now only $79.99!' },
       { name: 'Headphones', cost: 199.99, pitch: "It's only $199.99, best deal ever!" },
-      { name: 'Game console', cost: 399.99, pitch: 'Actual price $500, now only $399.99. Today only!' }
+      { name: 'Game console', cost: 399.99, pitch: 'Actual price $500, now only $399.99. Today only!' },
+      // Clothes and hairstyles (teammate request 2026-11-05): once bought they stay in the wardrobe closet.
+      { name: 'Orange jacket', cost: 59.99, pitch: 'Actual price $90, now only $59.99!', slot: 'top', wear: 'jacket' },
+      { name: 'Checkerboard jumpsuit', cost: 89.99, pitch: 'Orange and white! Actual price $130, now only $89.99. Game day only!', slot: 'top', wear: 'jumpsuit' },
+      { name: 'Maid costume', cost: 34.99, pitch: 'Only $34.99, perfect for a costume party!', slot: 'top', wear: 'maid' },
+      { name: 'Cat outfit', cost: 29.99, pitch: 'Ears included! Only $29.99, purr-fect!', slot: 'top', wear: 'cat' },
+      { name: 'Jeans', cost: 39.99, pitch: 'Only $39.99, they go with everything!', slot: 'legs', wear: 'jeans' },
+      { name: 'Shorts', cost: 19.99, pitch: 'Summer sale: only $19.99!', slot: 'legs', wear: 'shorts' },
+      { name: 'Sunglasses', cost: 14.99, pitch: 'Look cool for only $14.99!', slot: 'eyes', wear: 'sunglasses' },
+      { name: 'Glasses', cost: 24.99, pitch: 'Only $24.99, see every deal clearly!', slot: 'eyes', wear: 'glasses' },
+      { name: 'Long hairstyle', cost: 29.99, pitch: 'Salon special: only $29.99!', slot: 'hair', wear: 'long' },
+      { name: 'Spiky hairstyle', cost: 19.99, pitch: 'Salon special: only $19.99!', slot: 'hair', wear: 'spiky' }
     ];
     console.assert(WANTS.every((want) => want.pitch.includes(money(want.cost))), 'each sales pitch shows the real price');
 
@@ -506,40 +528,103 @@
 
     // ---- Wardrobe (§7.2 Customization, free for now): the look is remembered in this browser, like the save percent. ----
     const SHIRTS = { blue: '#2f3e8f', red: '#a33b2c', green: '#1f6f54', purple: '#7a4fa0', vols: '#ff8200' };
-    const SKINS = { person: PLAYER_SPRITE, hound: ['..wwww..', 'dwwwwwwd', 'dwewwewd', 'd.weew.d', 'bbbbbbbb', 'wbbbbbbw', '.wwwwww.', '.ww..ww.'] };
+    const SKINS = { person: PLAYER_SPRITE, hound: [ // same rows as the Resident: eyes on 5-6, shirt on 10-12, legs on 13-15
+      '.....wwwwww.....',
+      '...wwwwwwwwww...',
+      '..wwwwwwwwwwww..',
+      '.ddwwwwwwwwwwdd.',
+      'dddwwwwwwwwwwddd',
+      'dddweewwwweewddd',
+      'dddweewwwweewddd',
+      '.ddwwwkkkkwwwdd.',
+      '..dwwwwkkwwwwd..',
+      '...wwwwwwwwww...',
+      '..bbbbbbbbbbbb..',
+      '.bbbbbbbbbbbbbb.',
+      '.wbbbbbbbbbbbbw.',
+      '...wwwwwwwwww...',
+      '...wwww..wwww...',
+      '..ddddd..ddddd..'
+    ] };
     const LOOK_KEY = 'avasary.look';
-    const DEFAULT_LOOK = { shirt: 'blue', hat: false, skin: 'person' };
+    const CLOTHES = WANTS.filter((want) => want.wear);
+    const CLOSET_SLOTS = { top: 'Outfit', legs: 'Pants', eyes: 'Glasses', hair: 'Hair' };
+    const DEFAULT_LOOK = { shirt: 'blue', hat: false, skin: 'person', top: '', legs: '', eyes: '', hair: '', owned: [] };
+    // shortcut: bought clothes are kept in this browser but money isn't, so a reload keeps the clothes; move both to the database with accounts.
     function loadLook() {
       try {
         const saved = JSON.parse(localStorage.getItem(LOOK_KEY)) || {};
-        return { shirt: SHIRTS[saved.shirt] ? saved.shirt : DEFAULT_LOOK.shirt, hat: saved.hat === true, skin: SKINS[saved.skin] ? saved.skin : DEFAULT_LOOK.skin };
-      } catch { return { ...DEFAULT_LOOK }; }
+        const owned = CLOTHES.map((item) => item.wear).filter((wear) => (saved.owned || []).includes(wear));
+        const worn = (slot) => (owned.includes(saved[slot]) && CLOTHES.some((item) => item.slot === slot && item.wear === saved[slot]) ? saved[slot] : '');
+        return { shirt: SHIRTS[saved.shirt] ? saved.shirt : DEFAULT_LOOK.shirt, hat: saved.hat === true, skin: SKINS[saved.skin] ? saved.skin : DEFAULT_LOOK.skin,
+          top: worn('top'), legs: worn('legs'), eyes: worn('eyes'), hair: worn('hair'), owned };
+      } catch { return { ...DEFAULT_LOOK, owned: [] }; }
+    }
+    function saveLook() {
+      try { localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch { /* blocked storage: the look lasts until reload */ }
     }
     let look = loadLook();
 
-    // The 8x8 sprite rows for a look. step: the walking frame with the legs together.
-    function lookSprite({ shirt, hat, skin }, step = false) {
+    // The 16x16 sprite rows for a look. step: the walking frame with the legs together.
+    // Clothes paint over parts of the rows: 0-4 hair, 5-6 eyes, 10-12 shirt and hands, 13-14 pants, 15 shoes.
+    const paint = (rows, r, col, text) => { rows[r] = rows[r].slice(0, col) + text + rows[r].slice(col + text.length); };
+    // Swap some letters for others on rows from..to, e.g. turn the shirt (b) and pants (p) into a grey cat suit.
+    const recolor = (rows, from, to, swap) => { for (let r = from; r <= to; r++) rows[r] = [...rows[r]].map((key, c) => (typeof swap === 'function' ? swap(key, r, c) : swap[key]) || key).join(''); };
+    const WEAR = {
+      jacket: (rows) => { paint(rows, 10, 2, 'ooo'); paint(rows, 10, 11, 'ooo'); paint(rows, 11, 1, 'oooo'); paint(rows, 11, 11, 'oooo'); paint(rows, 12, 2, 'ooo'); paint(rows, 12, 11, 'ooo'); }, // open, the shirt shows
+      jumpsuit: (rows) => recolor(rows, 10, 14, (key, r, c) => ('bpw'.includes(key) ? (((r >> 1) + (c >> 1)) % 2 ? 'w' : 'o') : null)), // 2x2 checkerboard
+      maid: (rows) => {
+        paint(rows, 1, 4, 'wwwwwwww'); // headband
+        recolor(rows, 10, 12, { b: 'k' });
+        paint(rows, 10, 6, 'wwww'); paint(rows, 11, 5, 'wwwwww'); paint(rows, 12, 5, 'wwwwww'); // collar and apron
+        rows[13] = '..kkwwwwwwwwkk..';
+        recolor(rows, 14, 14, { p: 'w' }); // white stockings
+      },
+      cat: (rows) => {
+        rows[0] = '..gg........gg..'; paint(rows, 1, 2, 'grg'); paint(rows, 1, 11, 'grg'); // ears
+        recolor(rows, 10, 14, { b: 'g', p: 'g', w: 'g' });
+      },
+      jeans: (rows) => recolor(rows, 13, 14, { p: 'j' }),
+      shorts: (rows) => { recolor(rows, 13, 13, { p: 'c' }); recolor(rows, 14, 14, { p: 's' }); },
+      sunglasses: (rows) => { paint(rows, 5, 3, 'kkkkkkkkkk'); paint(rows, 6, 3, 'kkkk'); paint(rows, 6, 9, 'kkkk'); paint(rows, 5, 4, 'w'); paint(rows, 5, 10, 'w'); },
+      glasses: (rows) => { // gold frames around the eyes
+        paint(rows, 4, 3, 'mmmm'); paint(rows, 4, 9, 'mmmm');
+        paint(rows, 5, 3, 'm'); paint(rows, 5, 6, 'mmmm'); paint(rows, 5, 12, 'm');
+        paint(rows, 6, 3, 'm'); paint(rows, 6, 6, 'm'); paint(rows, 6, 9, 'm'); paint(rows, 6, 12, 'm');
+      },
+      long: (rows) => { rows[2] = '.hhHHhhhhhhhhhh.'; for (let r = 3; r <= 11; r++) { paint(rows, r, 1, 'hh'); paint(rows, r, 13, 'hh'); } },
+      spiky: (rows) => { rows[0] = '..h.hhh..hhh.h..'; }
+    };
+    function lookSprite({ shirt, hat, skin, top = '', legs = '', eyes = '', hair = '' }, step = false) {
       let rows = [...SKINS[skin]];
-      if (shirt === 'vols') rows[5] = `${rows[5].slice(0, 2)}wwww${rows[5].slice(6)}`; // white chest band for the letters
-      if (hat) rows = ['..oooo..', 'oooooooo', ...rows.slice(2)];
-      if (step) rows[7] = `..${rows[7].replace(/\./g, '')[0].repeat(4)}..`;
-      return rows;
+      if (shirt === 'vols') { paint(rows, 11, 5, 'wwwwww'); paint(rows, 12, 5, 'wwwwww'); } // white chest band for the letters
+      if (hair && skin === 'person') WEAR[hair](rows); // the hound keeps its ears
+      [top, legs, eyes].forEach((wear) => wear && WEAR[wear](rows));
+      if (hat) rows = ['....oooooooo....', '...oooooooooo...', '.oooooooooooooo.', ...rows.slice(3)];
+      return step ? stepSprite(rows) : rows;
     }
-    const lookColors = ({ shirt }) => ({ ...SPRITE_COLORS, b: SHIRTS[shirt], w: '#f4f1ea', d: '#5b5f66', o: '#ff8200' });
-    console.assert(lookSprite({ shirt: 'vols', hat: true, skin: 'person' })[5] === 'sbwwwwbs' && lookSprite(DEFAULT_LOOK, true)[7] === '..pppp..'
-      && lookSprite({ ...DEFAULT_LOOK, skin: 'hound' }, true)[7] === '..wwww..' && lookSprite({ ...DEFAULT_LOOK, hat: true })[1] === 'oooooooo', 'wardrobe sprites');
+    const lookColors = ({ shirt }) => ({ ...SPRITE_COLORS, b: SHIRTS[shirt], w: '#f4f1ea', d: '#5b5f66', o: '#ff8200',
+      g: '#9aa0a6', j: '#4a6fa5', c: '#c2a36b', m: '#c9a227' });
+    const isSquare = (rows) => rows.length === 16 && rows.every((row) => row.length === 16);
+    console.assert(isSquare(SKINS.hound) && lookSprite({ shirt: 'vols', hat: true, skin: 'person' })[11] === '.bbbbwwwwwwbbbb.'
+      && lookSprite(DEFAULT_LOOK, true)[14] === '....pppppppp....' && lookSprite({ ...DEFAULT_LOOK, skin: 'hound' }, true)[15] === '...dddddddddd...'
+      && lookSprite({ ...DEFAULT_LOOK, hat: true })[2] === '.oooooooooooooo.', 'wardrobe sprites');
+    console.assert(CLOTHES.every((item) => WEAR[item.wear] && CLOSET_SLOTS[item.slot])
+      && CLOTHES.every((item) => ['person', 'hound'].every((skin) => isSquare(lookSprite({ ...DEFAULT_LOOK, skin, [item.slot]: item.wear }, true))))
+      && lookSprite({ ...DEFAULT_LOOK, legs: 'shorts' }, true)[14] === '....ssssssss....'
+      && lookSprite({ ...DEFAULT_LOOK, skin: 'hound', hair: 'long' })[3] === SKINS.hound[3], 'closet sprites');
 
     function drawLookPreview() {
       const context = el('look-preview').getContext('2d');
       context.fillStyle = '#bfe3f0';
       context.fillRect(0, 0, 160, 160);
       drawResident(context, 0, 0, 160, lookSprite(look), lookColors(look));
-      if (look.shirt === 'vols') { // the chest band is row 5: y 96-112, x 48-112
+      if (look.shirt === 'vols' && (!look.top || look.top === 'jacket')) { // the chest band is rows 11-12, columns 5-10
         context.fillStyle = '#ff8200';
         context.font = 'bold 11px system-ui, sans-serif';
         context.textAlign = 'center';
         context.textBaseline = 'middle';
-        context.fillText('GO VOLS', 80, 104);
+        context.fillText('GO VOLS', 80, 116);
       }
     }
     function showWardrobe() {
@@ -547,12 +632,29 @@
       form.elements.shirt.value = look.shirt;
       form.elements.hat.checked = look.hat;
       form.elements.skin.value = look.skin;
+      // The closet: one set of choices per kind of clothing the Resident has bought.
+      el('closet').replaceChildren(...Object.entries(CLOSET_SLOTS).flatMap(([slot, legend]) => {
+        const items = CLOTHES.filter((item) => item.slot === slot && look.owned.includes(item.wear));
+        if (!items.length) return [];
+        const fieldset = document.createElement('fieldset');
+        fieldset.append(Object.assign(document.createElement('legend'), { textContent: legend }));
+        [{ name: slot === 'hair' ? 'Short' : 'None', wear: '' }, ...items].forEach((item) => {
+          const label = document.createElement('label');
+          label.innerHTML = `<input type="radio" name="${slot}"> `;
+          label.firstChild.value = item.wear;
+          label.firstChild.checked = look[slot] === item.wear;
+          label.append(item.name);
+          fieldset.append(label);
+        });
+        return [fieldset];
+      }));
+      if (!look.owned.length) el('closet').innerHTML = '<p class="muted">Clothes you buy in the shop go in your closet here.</p>';
       drawLookPreview();
     }
 
     // Short text that floats up and fades. Decorative: the same news is also in the page text for screen readers.
-    function floatText(container, text) {
-      const span = Object.assign(document.createElement('span'), { className: 'float-up', textContent: text });
+    function floatText(container, text, isError = false) {
+      const span = Object.assign(document.createElement('span'), { className: isError ? 'float-up float-error' : 'float-up', textContent: text });
       span.setAttribute('aria-hidden', 'true');
       container.append(span);
       setTimeout(() => span.remove(), 1300); // a timer, not animationend, so it still goes if animations are off
@@ -867,10 +969,13 @@
         el('bank-amount').value = 0;
         el('save-percent').value = loadSavePercent();
         // Want shop: any mix the wallet can cover. Only built after the last round, so chosenWants() is empty before it.
-        el('want-list').replaceChildren(...(lastRound ? WANTS : []).map((want, i) => {
+        // 3 random items each payday (teammate request 2026-11-05). Clothes already in the closet aren't sold again.
+        // The checkbox value stays the WANTS index. shuffled is in jobs/restocker.js.
+        const forSale = shuffled(WANTS.filter((want) => !look.owned.includes(want.wear))).slice(0, SHOP_ITEMS_SHOWN);
+        el('want-list').replaceChildren(...(lastRound ? forSale : []).map((want) => {
           const label = document.createElement('label');
           label.innerHTML = '<input type="checkbox" name="wants"> ';
-          label.firstChild.value = i;
+          label.firstChild.value = WANTS.indexOf(want);
           label.append(Object.assign(document.createElement('strong'), { textContent: want.name }), document.createElement('br'), want.pitch);
           return label;
         }));
@@ -948,6 +1053,9 @@
       game.wallet = roundCents(game.wallet - wantsSpend - deposit);
       game.spentOnWants = roundCents(game.spentOnWants + wantsSpend);
       game.bank = roundCents(game.bank + deposit);
+      // Bought clothes go in the closet and are worn right away (one per kind, so the last one ticked wins).
+      wants.filter((want) => want.wear).forEach((want) => { look.owned.push(want.wear); look[want.slot] = want.wear; });
+      saveLook();
       const did = [
         buy && `bought Food & Shelter for ${money(UPGRADE_COST)}`,
         wants.length && `bought ${wants.map((want) => want.name.toLowerCase()).join(' and ')} for ${money(wantsSpend)}`,
@@ -1049,8 +1157,8 @@
       ] : [];
       const rows = [
         ...carriedOver,
-        ...game.earnedByRound.map(({ earnings, work }, i) => [`Earned in Round ${i + 1} (${work})`, money(earnings)]),
-        ['Total earned', money(game.totalEarned), 'total'],
+        ...game.earnedByRound.map(({ earnings, work }, i) => [`Earned in Round ${i + 1} (${work})`, `+${money(earnings)}`]),
+        ['Total earned', `+${money(game.totalEarned)}`, 'total'],
         ['Spent on Food & Shelter', minusDollars(game.spentOnUpgrade)],
         ['Spent on wants', minusDollars(game.spentOnWants)],
         [game.emergency ? `Paid for bad luck (${game.emergency.name})` : 'Paid for bad luck', minusDollars(game.paidForEmergency)],
@@ -1063,7 +1171,9 @@
       ];
       el('money-table').replaceChildren(...rows.map(([label, amount, className]) => {
         const row = document.createElement('tr');
-        if (className) row.className = className;
+        // Money in is green, money out is red (teammate request 2026-11-05). Color isn't the only cue: the + and - stay.
+        const sign = amount.startsWith('+') && amount !== '+$0.00' ? 'gain' : amount.startsWith('-') ? 'loss' : '';
+        row.className = [className, sign].filter(Boolean).join(' ');
         row.append(Object.assign(document.createElement('td'), { textContent: label }),
           Object.assign(document.createElement('td'), { textContent: amount }));
         return row;
@@ -1103,8 +1213,9 @@
     }, { passive: true });
     el('wardrobe').addEventListener('change', () => {
       const form = el('wardrobe');
-      look = { shirt: form.elements.shirt.value, hat: form.elements.hat.checked, skin: form.elements.skin.value };
-      try { localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch { /* blocked storage: the look lasts until reload */ }
+      look = { ...look, shirt: form.elements.shirt.value, hat: form.elements.hat.checked, skin: form.elements.skin.value };
+      Object.keys(CLOSET_SLOTS).forEach((slot) => { if (form.elements[slot]) look[slot] = form.elements[slot].value; });
+      saveLook();
       drawLookPreview();
       playScene(el('waiting-scene'), drawWaitingRoom); // redraw now, also under reduced motion
     });

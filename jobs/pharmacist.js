@@ -71,12 +71,10 @@ const vialColor = (vial) => `hsl(${(vial.charCodeAt(0) - 65) * 47 % 360} 55% 42%
 const Pharmacist = {
   name: 'Pharmacist',
   howTo: [
-    'Each order asks for a goal vial. You start with vials A, B and C.',
-    'The recipe sheet shows which two vials mix into a new one, for example A + B = D.',
-    'Tap two of your vials to mix them. You keep both vials and get the new one too.',
-    'Some orders need a few mixes in a row, and one recipe on the sheet is a decoy you don\'t need.',
-    `Make the goal vial to fill the order. You earn $${PHARMACIST_PAY_PER_RECIPE.toFixed(2)} for each mix the order needs.`,
-    'If time runs out mid-order, you\'re still paid for each needed mix you made. Decoys pay nothing.'
+    '📄 Recipe sheet: A + B = D',
+    '🧪 Tap two vials to mix them',
+    '🎯 Make the goal vial',
+    `💵 $${PHARMACIST_PAY_PER_RECIPE.toFixed(2)} per mix. Decoy recipes pay nothing`
   ],
   howToFrames: 8,
 

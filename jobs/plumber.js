@@ -119,10 +119,10 @@ function pipeSvg(mask, joinedTo) {
 const Plumber = {
   name: 'Plumber',
   howTo: [
-    'Water comes out at Out on the left and has to reach In on the right.',
-    'Tap or click a pipe to turn it a quarter turn. Pipes with water from Out turn blue, and pipes joined to In turn green.',
-    'When the blue path joins Out to In, the job is fixed and a new grid appears.',
-    `Grids get bigger as you go, and bigger grids pay more ($${PLUMBER_PAY_PER_TILE.toFixed(2)} per tile). If time runs out mid-grid, you're paid for each tile you joined to Out or In.`
+    '🔄 Tap a pipe to turn it',
+    '💧 Join Out to In',
+    `💵 $${PLUMBER_PAY_PER_TILE.toFixed(2)} per tile. Bigger grids pay more`,
+    '⏱️ Out of time? Joined pipes still pay'
   ],
   howToFrames: 8,
 
