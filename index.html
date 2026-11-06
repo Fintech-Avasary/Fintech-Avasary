@@ -141,6 +141,17 @@
     .pipe-grid button:active { transform: none; }
     /* readable font for longer text and single letters (pixel B/C look like 8/0) */
     #portal-choice button span, .vial-shelf button.vial { font-family: system-ui, sans-serif; }
+    /* Title screen: big centered name, Smokey dancing below it (hop and sway here, stepping feet in the script). */
+    .title-screen { text-align: center; padding: 16px 0 8px; }
+    .game-title { margin: 0 0 24px; font-size: clamp(2rem, 9vw, 3.5rem); color: var(--ink); text-shadow: 4px 4px 0 #ff8200; }
+    #title-smokey { display: block; margin: 16px auto 0; width: 144px; height: 144px; border: none; background: none; image-rendering: pixelated; transform-origin: 50% 100%; animation: smokey-dance 0.8s ease-in-out infinite; }
+    @keyframes smokey-dance {
+      0%, 100% { transform: translateY(0) rotate(-10deg); }
+      25%, 75% { transform: translateY(-18px) rotate(0deg); }
+      50% { transform: translateY(0) rotate(10deg); }
+    }
+    @media (prefers-reduced-motion: reduce) { #title-smokey { animation: none; } }
+    .title-question { text-align: center; }
     .vial, .vial-shelf button.vial { border-radius: 0; }
     canvas { image-rendering: pixelated; }
 
@@ -195,8 +206,11 @@
     <p id="portal-badge" class="portal-badge" hidden></p>
 
     <section id="portal-choice">
-      <h1>Avasary</h1>
-      <p class="muted">Who is using this screen?</p>
+      <div class="title-screen">
+        <h1 class="game-title">Avasary</h1>
+        <canvas id="title-smokey" width="144" height="144" role="img" aria-label="Smokey, the Rocky Top hound, dancing"></canvas>
+      </div>
+      <p class="muted title-question">Who is using this screen?</p>
       <button type="button" id="choose-mayor" class="mayor">
         Mayor portal
         <span>For educators: run the Block and start the Workday</span>
@@ -611,6 +625,15 @@
       && CLOTHES.every((item) => ['person', 'hound'].every((skin) => isSquare(lookSprite({ ...DEFAULT_LOOK, skin, [item.slot]: item.wear }, true))))
       && lookSprite({ ...DEFAULT_LOOK, legs: 'shorts' }, true)[14] === '....ssssssss....'
       && lookSprite({ ...DEFAULT_LOOK, skin: 'hound', hair: 'long' })[3] === SKINS.hound[3], 'closet sprites');
+
+    function drawTitleSmokey(step) {
+      const context = el('title-smokey').getContext('2d');
+      context.clearRect(0, 0, 144, 144);
+      drawResident(context, 0, 0, 144, lookSprite({ ...DEFAULT_LOOK, skin: 'hound' }, step), lookColors({ shirt: 'vols' }));
+    }
+    drawTitleSmokey(false);
+    let smokeyStep = false;
+    if (!REDUCE_MOTION) setInterval(() => drawTitleSmokey(smokeyStep = !smokeyStep), 200); // feet step twice per sway
 
     function drawLookPreview() {
       const context = el('look-preview').getContext('2d');
