@@ -58,7 +58,8 @@ Plain HTML, CSS and JavaScript. There is no build step and nothing to install.
 | `docs/claude_code_game_request.md` | Request for the portals and the three-job lineup |
 | `docs/Judging_Rubric.md` | FinTech challenge judging rubric (lightning demo Nov 13, Final Demo Day Nov 18) |
 | `docs/FinTech-RockyTop-LightningDemo-Student-Guide.md` | Lightning demo event guide: 10-minute demos (4 min ours, then judges play and ask) |
-| `docs/rubric_feedback.md` | How the project stands against the rubric, and the plan for both demo dates |
+| `docs/rubric_feedback.md` | How the project stood against the rubric on Nov 3 (its plan is replaced by `judge_review.md`) |
+| `docs/judge_review.md` | Mock judge scorecard (Nov 6) and the current plan for both demo dates |
 | `docs/demo_materials.md` | Lightning demo plan (4-minute script, judge Q&A answers) and "How we built it with AI" slide text |
 | `logs/` | Session logs, one file per work session (see `logs/README.md`) |
 | `AGENTS.md` | This file: instructions for agents |

@@ -19,6 +19,8 @@ Each demo is 10 minutes with a pair of judges at our station: **4 minutes that a
 
 One teammate drives, one talks. Each correct answer buys 15 seconds of work (18 with Food & Shelter), so get **1 or 2 questions right in Round 1 and only 1 in Round 2**. Two right answers in Round 2 give 36 seconds of work, which doesn't fit the 30-second slot.
 
+Drive **Restocker** in both rounds and play it well. It's the easiest job to read from across the table and it pays steadily. Plumber's 3×3 grid runs past the bottom of a laptop screen, and a run with no routes fixed pays $0.
+
 | Time | On screen (driver) | Say (speaker) |
 | --- | --- | --- |
 | 0:00–0:40 | Portal choice screen | **The problem and our story.** "63% of U.S. adults say they could cover a surprise $400 bill with cash. That leaves more than a third who can't." *(Add one or two sentences on why this matters to us.)* "Avasary lets students feel that problem in class, before they meet it in real life." |
@@ -27,13 +29,14 @@ One teammate drives, one talks. Each correct answer buys 15 seconds of work (18 
 | 1:20–1:50 | Pick **Restocker**, read the how-to for a second, and play. | "Work time goes to a job. Each job is a quick game, and pay depends on how well you play." |
 | 1:50–2:10 | Payday: tick Food & Shelter and type `50` in the percent box. Point at the green "Save for later" box. | "Payday: spend or save? Food & Shelter makes every right answer worth more. Students can save a percent of their pay, and the game remembers it, like an automatic transfer." |
 | 2:10–2:40 | Round 2: questions (get 1 right), then Restocker. | "With Food & Shelter, the same right answer buys more work time. Needs come first, and they pay off quietly." |
-| 2:40–3:00 | Payday 2: point at the shop (3 random items each time). Tick one want you can afford and click **Finish the Workday**. If it's clothes, the Resident wears them right away. | "Now the shop. Wants are paid from the wallet only, so saved money is out of reach of impulse buys. And look at the price tags: 'Actual price', 'now only', 'today only'. That's how real ads make a price feel small." |
-| 3:00–3:20 | The bad-luck screen. | **A bill:** "Bad luck: a vet bill. If the wallet is empty, savings can cover it, with a $10 fee for taking the money out." **A lost wallet:** "Lost wallet: the cash is gone, but the savings account is safe." |
+| 2:40–3:00 | Payday 2: point at the shop (3 random items each time). Tick one want you can afford and click **Finish the Workday**. If it's clothes, the Resident wears them right away. | "Now the shop. Wants are paid from the wallet only, so saved money is out of reach of impulse buys. And look at the price tags: 'Actual price', 'now only', 'today only'. That's how real ads make a price feel small." **If nothing fits the wallet:** don't tick anything. "Nothing here fits my wallet, and the savings account can't be raided for it. That's the point." |
+| 3:00–3:20 | The bad-luck screen. | **A bill** (popcorn money, a gift, a bike repair or a vet bill): "Bad luck: a [bill]. If the wallet is empty, savings can cover it, with a $10 fee for taking the money out." **A lost wallet:** "Lost wallet: the cash is gone, but the savings account is safe." **If part of the bill is waived:** "We couldn't cover it all. Today the rest is waived, and the summary says what would happen in real life: it becomes debt." |
 | 3:20–4:00 | The summary. Point at the bold line at the top, then the money table. | "Every Workday ends with one line that ties the bad luck back to saving, then where every dollar went. Savings grow 5% at the end of every Workday, and money carries over. Now it's your turn: try it." |
 
 ### Minutes 4–10 (judges play and ask)
 
 - Refresh the page and hand over the laptop (or the phone) on the portal choice screen. Point at **Quick play**: one click joins the Block and starts a Workday with all jobs and topics, and bad luck always happens (which event is still random). No setup, no hand-holding.
+- If they ask which job to try, suggest Restocker first. If they pick Plumber on a laptop, tell them the grid scrolls.
 - While they play, answer questions. If there's time, walk through a second Workday to show money carrying over.
 - Be open about shortcomings and where we're going (the guide encourages it). See "What's not built yet" below.
 
@@ -65,6 +68,10 @@ The guide lists these as examples judges may ask about, not a checklist.
 - **"Where do the numbers come from?"** The $400 top of the bad-luck range comes from the Federal Reserve survey below. Prices follow real relationships: a vet bill costs more than a gift, which costs more than popcorn money. Job pay was tuned in team playtests so that the jobs earn about the same.
 - **"What does the teacher see?"** The Mayor portal sets jobs, topics and emergencies. A full teacher dashboard is planned and not built yet.
 - **"Can students see each other's money?"** No. Students see only each other's housing and location, so no one is shamed for being behind.
+- **"5% every Workday? No real savings account pays that."** True, and it's on purpose. A real account pays a few percent a year, which a student would never notice in one class period. We made the growth big enough to see on the summary after a single Workday. It's one number in the code, so we can make it realistic later. *(Team: agree on this answer before Nov 13.)*
+- **"My bill was forgiven. Doesn't that reward having no money?"** The credit system is off by default for younger students (spec §13), so a balance never goes below $0 and the unpaid part is waived. The summary says so: "In real life, a bill you can't pay becomes debt." With credit on, which is planned but not built yet, that gap would become a loan repaid out of future pay.
+- **"Why was the bill bigger than my pay?"** Bills range from $10 to $400. The top of that range matches the Fed's $400 question. A good round of work earns about $300, so a student who saves part of two paydays can cover even the biggest bill. Bad luck isn't fair, and that's why an emergency fund matters.
+- **"How many questions are there, and who wrote them?"** There are 23, across six topics (needs and wants, budgeting, saving, banking, credit and earning), and the Mayor turns topics on or off. An AI drafted them and a teammate is reviewing them. *(Update this answer once the review is done.)*
 
 ### The $400 figure
 
