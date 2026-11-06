@@ -10,14 +10,14 @@ Each demo is 10 minutes with a pair of judges at our station: **4 minutes that a
 
 - [ ] Laptop and power cord. A phone with the game open is optional, but judges may try it there.
 - [ ] Open `index.html` and press **Ctrl+F5** so no old files are cached. With internet the pixel font loads; without it, headings fall back to plain monospace and everything still works.
-- [ ] Clear the remembered save percent: open the browser console (F12) and run `localStorage.clear()`, then refresh.
+- [ ] Clear what the browser remembers (the save percent, the wardrobe look and clothes bought in earlier runs): open the browser console (F12) and run `localStorage.clear()`, then refresh.
 - [ ] Practice the 4 minutes with a timer. The bad-luck event is random, so practice the lines for a bill and for a lost wallet (see 3:00).
 - [ ] Record a backup video of a good run in case the live one goes wrong.
-- [ ] Between judge pairs, refresh the page so the next judges start from zero.
+- [ ] Between judge pairs, run `localStorage.clear()` in the console and refresh, so the next judges start from zero. A refresh alone keeps the clothes the last judges bought.
 
 ### The first 4 minutes (ours)
 
-One teammate drives, one talks. Each correct answer buys 15 seconds of work, so getting **1 or 2 questions right in each round** keeps the jobs short.
+One teammate drives, one talks. Each correct answer buys 15 seconds of work (18 with Food & Shelter), so get **1 or 2 questions right in Round 1 and only 1 in Round 2**. Two right answers in Round 2 give 36 seconds of work, which doesn't fit the 30-second slot.
 
 | Time | On screen (driver) | Say (speaker) |
 | --- | --- | --- |
@@ -26,8 +26,8 @@ One teammate drives, one talks. Each correct answer buys 15 seconds of work, so 
 | 1:00–1:20 | Round 1: answer 3 questions, getting 1 or 2 right. | "Students answer money questions. Each right answer is energy, which here means work time. It's the only way to get to work, so the learning can't be skipped." |
 | 1:20–1:50 | Pick **Restocker**, read the how-to for a second, and play. | "Work time goes to a job. Each job is a quick game, and pay depends on how well you play." |
 | 1:50–2:10 | Payday: tick Food & Shelter and type `50` in the percent box. Point at the green "Save for later" box. | "Payday: spend or save? Food & Shelter makes every right answer worth more. Students can save a percent of their pay, and the game remembers it, like an automatic transfer." |
-| 2:10–2:40 | Round 2: questions, then Restocker. | "With Food & Shelter, the same right answer buys more work time. Needs come first, and they pay off quietly." |
-| 2:40–3:00 | Payday 2: point at the shop. Tick one want you can afford and click **Finish the Workday**. | "Now the shop. Wants are paid from the wallet only, so saved money is out of reach of impulse buys. And look at the tags: 'Actual price $120, now only $79.99.' That's how real ads make a price feel small." |
+| 2:10–2:40 | Round 2: questions (get 1 right), then Restocker. | "With Food & Shelter, the same right answer buys more work time. Needs come first, and they pay off quietly." |
+| 2:40–3:00 | Payday 2: point at the shop (3 random items each time). Tick one want you can afford and click **Finish the Workday**. If it's clothes, the Resident wears them right away. | "Now the shop. Wants are paid from the wallet only, so saved money is out of reach of impulse buys. And look at the price tags: 'Actual price', 'now only', 'today only'. That's how real ads make a price feel small." |
 | 3:00–3:20 | The bad-luck screen. | **A bill:** "Bad luck: a vet bill. If the wallet is empty, savings can cover it, with a $10 fee for taking the money out." **A lost wallet:** "Lost wallet: the cash is gone, but the savings account is safe." |
 | 3:20–4:00 | The summary. Point at the bold line at the top, then the money table. | "Every Workday ends with one line that ties the bad luck back to saving, then where every dollar went. Savings grow 5% at the end of every Workday, and money carries over. Now it's your turn: try it." |
 
@@ -47,7 +47,7 @@ The guide lists these as examples judges may ask about, not a checklist.
 | **How does it get its data? Do users input data?** | The questions are written by the team. Students only input answers, purchases and how much to save. There are no names or real money. |
 | **Hosting and cost?** | It runs from a single file on the laptop and costs $0. Hosting it as a static site is free or close to free. |
 | **AI tools?** | Claude Code wrote most of the code under our rules (see Part 2). |
-| **User data: what's stored, who sees it?** | Nothing leaves the device. The only thing saved is the save percent, in this browser. Students are middle schoolers, so collecting accounts needs a privacy plan first, and that's on our roadmap. |
+| **User data: what's stored, who sees it?** | Nothing leaves the device. The only things saved are the save percent and the wardrobe look (including bought clothes), in this browser. Students are middle schoolers, so collecting accounts needs a privacy plan first, and that's on our roadmap. |
 | **Data sources with terms or limits?** | The one outside figure is the Federal Reserve's SHED survey, which is public. |
 | **Live vs. stand-in data?** | Everything is stand-in. The Block, Residents and prices are made up. Prices follow real relationships, and the $400 top of the bad-luck range comes from the Fed survey. |
 
@@ -70,7 +70,7 @@ The guide lists these as examples judges may ask about, not a checklist.
 
 - **Claim:** 63% of U.S. adults would cover a $400 emergency expense with cash or its equivalent. The share has been flat since 2024 and is down from 68% in 2021.
 - **Source:** Federal Reserve, *Economic Well-Being of U.S. Households in 2025* (Survey of Household Economics and Decisionmaking, released May 2026): <https://www.federalreserve.gov/consumerscommunities/shed.htm>
-- **Before quoting it:** this figure came from news coverage of the report. A teammate should check it in the Fed's report itself.
+- **Checked:** Ngoc confirmed the 63% in the Fed's report itself on Nov 5.
 
 ## Part 2: "How we built it with AI" slide
 

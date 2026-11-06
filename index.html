@@ -353,7 +353,6 @@
             <caption class="muted">Your money this Workday</caption>
             <tbody id="money-table"></tbody>
           </table>
-          <ul id="summary-list"></ul>
           <button type="button" id="next-workday">Back to the waiting room</button>
         </div>
       </div>
@@ -486,8 +485,7 @@
       Object.assign(game, {
         workday: game.workday + 1, lastJob: null, round: 0, questions: [], questionIndex: 0, workSeconds: 0,
         startWallet: game.wallet, startBank: game.bank,
-        totalEarned: 0, earnedByRound: [], spentOnUpgrade: 0, spentOnWants: 0, paidForEmergency: 0, paidFromBank: 0, withdrawalFee: 0, waived: 0, interest: 0, emergency: null,
-        choices: [], emergencySummary: 'No bad luck this Workday.'
+        totalEarned: 0, earnedByRound: [], spentOnUpgrade: 0, spentOnWants: 0, paidForEmergency: 0, paidFromBank: 0, withdrawalFee: 0, waived: 0, interest: 0, emergency: null
       });
     }
     const el = (id) => document.getElementById(id);
@@ -958,7 +956,6 @@
       el('want-shop').hidden = !lastRound;
       el('continue').hidden = hasMoney;
       el('continue').textContent = lastRound ? 'Finish the Workday' : `Start Round ${game.round + 1}`;
-      if (!hasMoney) game.choices.push(`You had no money to save or spend after Round ${game.round}.`);
       if (hasMoney) {
         const owned = game.foodShelterMultiplier > 1; // bought on an earlier Workday
         el('buy-upgrade').checked = false;
@@ -1056,12 +1053,6 @@
       // Bought clothes go in the closet and are worn right away (one per kind, so the last one ticked wins).
       wants.filter((want) => want.wear).forEach((want) => { look.owned.push(want.wear); look[want.slot] = want.wear; });
       saveLook();
-      const did = [
-        buy && `bought Food & Shelter for ${money(UPGRADE_COST)}`,
-        wants.length && `bought ${wants.map((want) => want.name.toLowerCase()).join(' and ')} for ${money(wantsSpend)}`,
-        `put ${money(deposit)} in your savings account`
-      ].filter(Boolean).join(', ');
-      game.choices.push(`After Round ${game.round} you ${did} and kept ${money(game.wallet)} in your wallet.`);
       showMoney();
       if (game.round < ROUNDS) startRound();
       else endWorkday();
@@ -1107,11 +1098,6 @@
       game.paidFromBank = fromBank;
       game.withdrawalFee = fee;
       game.waived = waived;
-      game.emergencySummary = event.walletOnly
-        ? `You lost your wallet with ${money(fromWallet)} in it. Your savings account was safe.`
-        : `${event.name} (${money(game.emergencyCost)}) took ${money(fromWallet)} from your wallet and ${money(fromBank)} from your savings account.`;
-      if (fee) game.emergencySummary += ` Taking money out of savings cost a ${money(fee)} fee.`;
-      if (waived > 0) game.emergencySummary += ` The other ${money(waived)} was waived because you had no money left.`;
       showMoney();
       el('emergency').hidden = true;
       finishWorkday();
@@ -1180,20 +1166,6 @@
       }));
       console.assert(roundCents(game.startWallet + game.startBank + game.totalEarned + game.interest
         - game.spentOnUpgrade - game.spentOnWants - game.paidForEmergency - game.withdrawalFee) === roundCents(game.wallet + game.bank), 'money table adds up');
-      const workdaysToInterest = WORKDAYS_PER_INTEREST - (game.workday % WORKDAYS_PER_INTEREST);
-      el('summary-list').replaceChildren(...[
-        `You earned ${money(game.totalEarned)} from work.`,
-        ...game.choices,
-        game.emergencySummary,
-        game.interest ? `Your savings account grew by ${money(game.interest)} (${SAVINGS_INTEREST_RATE * 100}%).` : null,
-        `You finished with ${money(game.wallet)} in your wallet and ${money(game.bank)} in your savings account.`,
-        WORKDAYS_PER_INTEREST === 1 ? `Your savings account grows ${SAVINGS_INTEREST_RATE * 100}% at the end of every Workday.`
-          : `Your savings account grows ${SAVINGS_INTEREST_RATE * 100}% every ${WORKDAYS_PER_INTEREST} Workdays. Next time: in ${workdaysToInterest} ${workdaysToInterest === 1 ? 'Workday' : 'Workdays'}.`
-      ].filter(Boolean).map((line) => {
-        const row = document.createElement('li');
-        row.textContent = line;
-        return row;
-      }));
       el('summary-lesson').textContent = lessonFor({ event: game.emergency, fromWallet: roundCents(game.paidForEmergency - game.paidFromBank),
         fee: game.withdrawalFee, waived: game.waived, spentOnWants: game.spentOnWants });
       el('summary').hidden = false;
