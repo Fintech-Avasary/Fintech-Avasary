@@ -48,3 +48,20 @@ An agent played one Quick play run as a judge and scored it against `docs/Judgin
 | 11 | Decide on the upgrade price ($40 vs $60–$80). | Finance | Still open from 11-05. |
 
 **Recommended order:** 1–5 this week. The team decides on 6–8 right after Nov 13 so they can be built before Nov 18. Item 6 matters most: it turns "saving helps" from something we say into something the judges see happen.
+
+## Phone playtest — 2026-11-06
+
+Ngoc played each job for a full Workday on a phone, once with Food & Shelter and once without. Pay per Round:
+
+| Job | Upgraded R1 / R2 | Total | Not upgraded R1 / R2 | Total |
+| --- | --- | --- | --- | --- |
+| Restocker ($11 per item) | $209.00 / $275.00 (19 / 25 items) | $484.00 | $154.00 / $220.00 (14 / 20 items) | $374.00 |
+| Plumber ($3.30 per tile) | $181.50 / $237.60 (55 / 72 tiles) | $419.10 | $306.90 / $231.00 (93 / 70 tiles) | $537.90 |
+| Pharmacist ($15.40 per mix) | $354.20 / $462.00 (23 / 30 mixes) | $816.20 | $400.40 / $338.80 (26 / 22 mixes) | $739.20 |
+
+What it shows (one run each, so expect noise; assumes 3 of 3 correct each Round):
+- All three jobs played to the end on a phone.
+- **Pharmacist pays the most**, about 2× Restocker. The 11-05 target was ~$600 a Workday. Could be the "promotion" job (§8), or a balance issue. Not changed.
+- **Food & Shelter pays off within one Round**: the extra 9 seconds earned about $46 (Restocker), $40 (Plumber) and $77 (Pharmacist) in R2, against the $40 price. On Plumber it only breaks even. Relevant to item 11.
+- **Without the upgrade, R2 swung both ways**: Restocker +43%, Plumber −25%, Pharmacist −15%.
+- **Each full Workday covers the biggest bill** (vet bill, up to $400) on a good run, so the loan offer mostly shows for weaker players or big spenders. Relevant to item 6.
