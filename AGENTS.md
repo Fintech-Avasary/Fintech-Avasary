@@ -61,6 +61,7 @@ Plain HTML, CSS and JavaScript. There is no build step and nothing to install.
 | `docs/rubric_feedback.md` | How the project stood against the rubric on Nov 3 (its plan is replaced by `judge_review.md`) |
 | `docs/judge_review.md` | Mock judge scorecard (Nov 6) and the current plan for both demo dates |
 | `docs/demo_materials.md` | Lightning demo plan (4-minute script, judge Q&A answers) and "How we built it with AI" slide text |
+| `docs/pitch.md` | Draft answers to the eight pitch questions (story, problem, demo, future, market, customer, risks, funding). Has blanks for the team. |
 | `logs/` | Session logs, one file per work session (see `logs/README.md`) |
 | `AGENTS.md` | This file: instructions for agents |
 | `CLAUDE.md` | Imports this file for Claude Code. Don't add anything else to it. |
