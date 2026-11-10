@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avasary concept art: second style</title>
+<style>
+  body { margin: 0; background: #000; color: #aaa; font-family: monospace; text-align: center; }
+  canvas { width: min(96vw, 960px); image-rendering: pixelated; display: block; margin: 12px auto; border: 4px solid #555; }
+  button { font: inherit; background: #000; color: #fff; border: 2px solid #aaa; padding: 8px 14px; margin: 4px; cursor: pointer; }
+  button:hover, button:focus-visible { background: #aaa; color: #000; }
+  p { margin: 6px 16px; }
+</style>
+</head>
+<body>
+<canvas id="c" width="640" height="480" aria-label="Concept art scene"></canvas>
+<div>
+  <button data-s="0">1 Introduction</button>
+  <button data-s="1">2 Paycheck</button>
+  <button data-s="2">3 Bad luck</button>
+</div>
+<p>Concept art only. Not in the playable game. Press 1, 2 or 3.</p>
+<script>
+// Concept art for a possible retro look (16-color palette, 640x480 mode).
+// All art is drawn here from scratch: no assets from any existing game.
+const PAL = ['000000','0000AA','00AA00','00AAAA','AA0000','AA00AA','AA5500','AAAAAA',
+             '555555','5555FF','55FF55','55FFFF','FF5555','FF55FF','FFFF55','FFFFFF']
+  .map(h => [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)));
+const [BLK, BLU, GRN, CYN, RED, MAG, BRN, LGR, DGR, LBL, LGN, LCY, LRD, LMG, YEL, WHT] = PAL.map((_, i) => i);
+const hex = i => '#' + [0, 1, 2].map(k => PAL[i][k].toString(16).padStart(2, '0')).join('');
+
+const cv = document.getElementById('c');
+const g = cv.getContext('2d', { willReadFrequently: true });
+const R = (x, y, w, h, c) => { g.fillStyle = hex(c); g.fillRect(x, y, w, h); };
+const T = (s, x, y, c, px = 10, align = 'left') => {
+  g.fillStyle = hex(c); g.font = `bold ${px}px monospace`; g.textBaseline = 'top'; g.textAlign = align;
+  g.fillText(s, x, y);
+};
+const disc = (cx, cy, r, c) => { g.fillStyle = hex(c); g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill(); };
+const line = (x1, y1, x2, y2, c, w = 1) => {
+  g.strokeStyle = hex(c); g.lineWidth = w; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+};
+
+// Snap every pixel to the nearest palette color so text smoothing can't add extra colors.
+function quantize() {
+  const img = g.getImageData(0, 0, 640, 480), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    let best = 0, bd = 1e9;
+    for (let p = 0; p < 16; p++) {
+      const dr = d[i] - PAL[p][0], dg = d[i + 1] - PAL[p][1], db = d[i + 2] - PAL[p][2];
+      const dist = dr * dr + dg * dg + db * db;
+      if (dist < bd) { bd = dist; best = p; }
+    }
+    d[i] = PAL[best][0]; d[i + 1] = PAL[best][1]; d[i + 2] = PAL[best][2]; d[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+}
+
+// Logical size is 320x240; the canvas is 640x480 and every draw call is scaled 2x,
+// so shapes and text are rendered at true 640x480 detail, then snapped to the palette.
+// Black screen, framed picture on top (y 8..140), text below.
+const PIC_BOTTOM = 140;
+function frame() {
+  g.setTransform(2, 0, 0, 2, 0, 0);
+  R(0, 0, 320, 240, BLK);
+  R(6, 6, 308, PIC_BOTTOM - 6 + 2, WHT);
+  R(8, 8, 304, PIC_BOTTOM - 8, BLK);
+  g.save(); g.beginPath(); g.rect(8, 8, 304, PIC_BOTTOM - 8); g.clip();
+}
+const unclip = () => g.restore();
+function house(x, y, w, h, wall, roof) {
+  R(x, y, w, h, wall);
+  g.fillStyle = hex(roof); g.beginPath();
+  g.moveTo(x - 3, y); g.lineTo(x + w / 2, y - 12); g.lineTo(x + w + 3, y); g.fill();
+  R(x + w / 2 - 3, y + h - 12, 6, 12, BRN);
+  R(x + 4, y + 5, 5, 5, YEL);
+}
+
+// Scene 1: introduction
+function intro() {
+  frame();
+  R(8, 8, 304, 82, LBL);           // sky
+  R(8, 90, 304, 50, GRN);          // grass
+  disc(270, 30, 12, YEL);          // sun
+  [[40, 24], [120, 62], [270, 58]].forEach(([x, y]) => { R(x, y, 30, 6, WHT); R(x + 6, y - 5, 18, 6, WHT); });
+  disc(60, 112, 40, LGN); disc(250, 116, 46, LGN);
+  R(8, 104, 304, 36, GRN);
+  g.fillStyle = hex(BRN); g.beginPath(); g.moveTo(148, 140); g.lineTo(172, 140); g.lineTo(163, 96); g.lineTo(157, 96); g.fill();
+  house(90, 86, 26, 20, WHT, RED);
+  house(124, 82, 30, 24, YEL, BRN);
+  house(176, 84, 28, 22, LCY, BLU);
+  house(212, 88, 24, 18, WHT, MAG);
+  R(40, 82, 36, 24, LGR); R(36, 78, 44, 5, DGR);   // bank
+  [42, 52, 62, 70].forEach(x => R(x, 84, 3, 22, WHT));
+  T('$', 58, 66, YEL, 10, 'center');
+  R(70, 14, 180, 30, BLK); R(72, 16, 176, 26, BLU);
+  T('AVASARY', 160, 20, YEL, 22, 'center');
+  unclip();
+  T('A game about money.', 160, 150, WHT, 11, 'center');
+  T('Answer questions. Work jobs. Save for bad luck.', 160, 166, LGR, 9, 'center');
+  T('You may:', 24, 188, YEL, 11);
+  T('1. Start your Workday', 40, 203, WHT, 11);
+  T('2. Learn how to play', 40, 218, WHT, 11);
+  T('What is your choice? _', 190, 218, LCY, 9);
+  quantize();
+}
+
+// Scene 2: paycheck
+function pay() {
+  frame();
+  R(8, 8, 304, PIC_BOTTOM - 8, BLU);
+  R(60, 30, 200, 90, WHT); R(62, 32, 196, 86, LGR); R(66, 36, 188, 78, WHT);
+  T('AVASARY CITY PAYROLL', 160, 42, BLU, 10, 'center');
+  T('Pay to: YOU', 74, 62, BLK, 10);
+  T('$286.00', 246, 60, GRN, 14, 'right');
+  line(74, 80, 246, 80, DGR);
+  T('Job: Restocker', 74, 86, DGR, 9);
+  R(176, 102, 70, 1, BLK);
+  T('Mayor', 211, 104, DGR, 9, 'center');
+  [[24, 116], [32, 124], [28, 132]].forEach(([x, y]) => { disc(x, y, 8, YEL); disc(x, y, 5, BRN); });
+  [[290, 120], [282, 128], [296, 132]].forEach(([x, y]) => { disc(x, y, 8, YEL); disc(x, y, 5, BRN); });
+  unclip();
+  T('Round 1 payday! You earned $286.00', 160, 150, YEL, 11, 'center');
+  T('Your wallet: $286.00   Savings: $0.00', 160, 166, LGR, 9, 'center');
+  T('What will you do with it?', 24, 185, WHT, 11);
+  T('1. Buy Food & Shelter ($40)', 36, 199, WHT, 10);
+  T('2. Put some in your savings account', 36, 212, WHT, 10);
+  T('3. Keep it in your wallet', 36, 225, WHT, 10);
+  T('Choice? _', 250, 225, LCY, 9);
+  quantize();
+}
+
+// Scene 3: bad luck, a sibling asks for popcorn money ($10-20 in the game; $10 here).
+// Picture: your hand holds a $10 bill and a second hand reaches to take it.
+function bad() {
+  frame();
+  R(8, 8, 304, PIC_BOTTOM - 8, LBL);
+  for (let y = 14; y < PIC_BOTTOM; y += 16) R(8, y, 304, 2, LCY);    // soft stripes
+  // the $10 bill
+  R(96, 50, 100, 56, BLK); R(98, 52, 96, 52, GRN); R(102, 56, 88, 44, LGN);
+  disc(146, 78, 17, GRN); disc(146, 78, 14, LGN);
+  T('10', 146, 70, BLK, 16, 'center');
+  T('$10', 108, 58, BLK, 9, 'center'); T('$10', 180, 88, BLK, 9, 'center');
+  // your hand (left, blue sleeve) pinching the bill
+  R(8, 66, 40, 34, BLU); R(48, 66, 4, 34, BLK);
+  R(52, 68, 28, 30, BRN);                         // palm
+  R(80, 74, 26, 7, BRN); R(80, 83, 26, 7, BRN);   // fingers over the bill
+  R(76, 58, 30, 8, BRN);                          // thumb on top
+  R(106, 74, 2, 16, BLK);
+  // their hand (right, red sleeve) reaching to take it
+  R(272, 72, 40, 34, RED); R(268, 72, 4, 34, BLK);
+  R(240, 74, 28, 30, BRN);                        // palm
+  R(206, 72, 34, 6, BRN); R(202, 81, 38, 6, BRN); R(204, 90, 36, 6, BRN); R(210, 99, 30, 5, BRN);   // fingers
+  R(222, 108, 22, 6, BRN);                        // thumb
+  // motion lines: it is being taken
+  line(200, 62, 214, 62, WHT, 2); line(204, 116, 220, 116, WHT, 2); line(198, 68, 208, 68, WHT, 2);
+  unclip();
+  T('BAD LUCK!', 160, 146, LRD, 13, 'center');
+  T('Your little brother wants popcorn money. He takes $10.00.', 160, 163, WHT, 9, 'center');
+  T('You can not say no.', 160, 175, WHT, 9, 'center');
+  T('Your wallet: $286.00   Savings: $150.00', 160, 188, LGR, 9, 'center');
+  T('How will you pay the $10.00?', 24, 202, YEL, 10);
+  T('1. Wallet first, then savings', 36, 214, WHT, 10);
+  T('2. Savings first, then wallet ($10 fee)', 36, 226, WHT, 10);
+  quantize();
+}
+
+const scenes = [intro, pay, bad];
+function show(i) { scenes[i](); }
+document.querySelectorAll('button').forEach(b => b.onclick = () => show(+b.dataset.s));
+addEventListener('keydown', e => { const i = '123'.indexOf(e.key); if (i >= 0) show(i); });
+show(0);
+</script>
+</body>
+</html>
