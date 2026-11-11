@@ -10,3 +10,5 @@ dist/
 build/
 
 graphify-out/
+
+.playwright-mcp/
