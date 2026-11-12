@@ -117,6 +117,8 @@
     /* Savings stands out on payday so first-timers don't skip it (rubric: ease of use). */
     .savings-box { background: #e3f1ea; border-color: var(--accent); }
     .savings-box legend { background: var(--accent); color: #ffffff; padding: 2px 8px; }
+    .pct-row { display: flex; gap: 6px; margin-top: 8px; }
+    .pct-row button { margin: 0; padding: 4px 10px; font-size: 0.6rem; box-shadow: 2px 2px 0 var(--ink); }
     main[data-portal="mayor"] .portal-badge { color: var(--mayor); }
     main[data-portal="resident"] .portal-badge { color: var(--accent); }
 
@@ -177,6 +179,11 @@
     @media (prefers-reduced-motion: reduce) { .float-up { animation-name: fade-out; } }
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .restock-store { position: relative; }
+    /* Restocker takes the whole screen. The class is set in showHowTo and removed when the job ends. */
+    #job-area.job-full { position: fixed; inset: 0; z-index: 100; margin: 0; padding: 16px; overflow-y: auto; background: var(--card); }
+    #job-area.job-full .restock-layout { justify-content: center; }
+    #job-area.job-full .restock-store canvas { width: auto; max-width: 100%; height: 60vh; margin: 8px auto; }
+    #job-area.job-full .job-controls { max-width: 360px; margin-inline: auto; }
     .restock-store .float-up { position: absolute; left: 0; right: 0; top: 35%; margin: 0; text-align: center; font-size: 1.25rem; text-shadow: 2px 2px 0 #ffffff; }
 
     /* 4. Wardrobe beside the waiting room (below it on phones). */
@@ -356,8 +363,11 @@
               <p class="muted">Money in your savings account is safe if you lose your wallet, and it grows 5% at the end of every Workday.</p>
               <label for="bank-amount">Dollars to put in your savings account (<span id="bank-max"></span> max)</label>
               <input type="number" id="bank-amount" min="0" step="0.01" inputmode="decimal">
-              <label for="save-percent">Or save a percent of it (remembered for next payday)</label>
-              <input type="number" id="save-percent" min="0" max="100" step="any" inputmode="decimal" placeholder="%">
+              <div class="pct-row">
+                <button type="button" class="secondary" data-pct="20">20%</button>
+                <button type="button" class="secondary" data-pct="50">50%</button>
+                <button type="button" class="secondary" data-pct="100">100%</button>
+              </div>
             </fieldset>
             <p id="money-plan" class="muted" aria-live="polite"></p>
             <button type="button" id="money-done"></button>
@@ -959,6 +969,7 @@
       // §7.4: switching jobs costs travel time, which doesn't come out of work time.
       let secondsLeft = JOB_SWAP_SECONDS;
       el('countdown').textContent = `Traveling to your ${job.name} job: ${secondsLeft}...`;
+      el('job-area').classList.remove('job-full');
       el('job-area').innerHTML = '<canvas width="320" height="128" aria-hidden="true"></canvas>';
       playScene(el('job-area').firstChild, (context, frame) => drawTravel(context, frame, fromJob, job));
       const timer = setInterval(() => {
@@ -976,6 +987,7 @@
     // Instructions before every job; work time only starts counting on "Start work".
     function showHowTo(job, seconds) {
       const area = el('job-area');
+      area.classList.toggle('job-full', job === Restocker); // Restocker's store takes the whole screen
       area.innerHTML = `<h2>How to work as ${job.name}</h2>
         <div class="howto-layout"><ul></ul>
           <canvas width="160" height="120" role="img" aria-label="Animated example of the ${job.name} job"></canvas></div>
@@ -1002,6 +1014,7 @@
 
     // §7.2: every job pays its performance-based earnings into the same wallet.
     function finishJob({ earnings: rawEarnings, summary }) {
+      el('job-area').classList.remove('job-full'); // back to the normal page for the payout and money choice
       const earnings = roundCents(rawEarnings);
       // §13.2: part of every payday goes to the loan until it's paid off.
       const repaid = garnishFrom(earnings, game.loan);
@@ -1034,7 +1047,6 @@
           : game.wallet < UPGRADE_COST ? `Food & Shelter costs ${money(UPGRADE_COST)}: not enough money`
           : `Buy Food & Shelter for ${money(UPGRADE_COST)}: ${UPGRADE_MULTIPLIER}x work time per correct answer`;
         el('bank-amount').value = 0;
-        el('save-percent').value = loadSavePercent();
         // Want shop: any mix the wallet can cover. Only built after the last round, so chosenWants() is empty before it.
         // 3 random items each payday (teammate request 2026-11-05). Clothes already in the closet aren't sold again.
         // The checkbox value stays the WANTS index. shuffled is in jobs/restocker.js.
@@ -1066,27 +1078,9 @@
     console.assert(clampDeposit('25', 60) === 25 && clampDeposit('90', 60) === 60 && clampDeposit('-5', 60) === 0
       && clampDeposit('', 60) === 0 && clampDeposit('abc', 60) === 0 && clampDeposit('12.7', 60) === 12.7 && clampDeposit('12.345', 60) === 12.35, 'deposit is 0 to the max, to the cent');
 
-    // A percent (0-100, decimals allowed) of what's left to save; '' means the student typed dollars instead.
-    function clampPercent(value) {
-      if (String(value).trim() === '') return '';
-      const percent = Number(value);
-      return Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) : '';
-    }
-    const percentOf = (max, percent) => floorCents(max * percent / 100); // to the cent, rounded down
-    console.assert(clampPercent('25') === 25 && clampPercent('150') === 100 && clampPercent('-3') === 0 && clampPercent('') === ''
-      && clampPercent('abc') === '' && percentOf(360, 12.5) === 45 && percentOf(100.01, 50) === 50, 'save percent is 0-100, to the cent');
-
-    // The saving percent is remembered in this browser between paydays and reloads. Storage can be blocked, so it's optional.
-    const SAVE_PERCENT_KEY = 'avasary.savePercent';
-    function loadSavePercent() {
-      try { return clampPercent(localStorage.getItem(SAVE_PERCENT_KEY) ?? ''); } catch { return ''; }
-    }
-    function storeSavePercent(percent) {
-      try {
-        if (percent === '') localStorage.removeItem(SAVE_PERCENT_KEY);
-        else localStorage.setItem(SAVE_PERCENT_KEY, percent);
-      } catch { /* private window or blocked storage: just don't remember */ }
-    }
+    // The 20% / 50% / 100% buttons fill the dollar box with that share of what's left to save, to the cent, rounded down.
+    const percentOf = (max, percent) => floorCents(max * percent / 100);
+    console.assert(percentOf(360, 20) === 72 && percentOf(360, 50) === 180 && percentOf(100.01, 100) === 100.01, 'percent buttons: share of the max, to the cent');
 
     function updateMoneyPlan() {
       // Grey out anything that no longer fits in the wallet next to what's already ticked.
@@ -1096,8 +1090,6 @@
         box.disabled = !box.checked && WANTS[box.value].cost > bankMax();
       });
       const max = bankMax();
-      const percent = clampPercent(el('save-percent').value);
-      if (percent !== '') el('bank-amount').value = percentOf(max, percent); // the percent fills in the dollar box
       const deposit = clampDeposit(el('bank-amount').value, max);
       el('bank-max').textContent = money(max);
       el('bank-amount').max = max;
@@ -1110,7 +1102,6 @@
       const buy = el('buy-upgrade').checked;
       const wants = chosenWants();
       const deposit = clampDeposit(el('bank-amount').value, bankMax());
-      storeSavePercent(clampPercent(el('save-percent').value));
       if (buy) {
         game.wallet = roundCents(game.wallet - UPGRADE_COST);
         game.spentOnUpgrade = roundCents(game.spentOnUpgrade + UPGRADE_COST);
@@ -1318,11 +1309,13 @@
     });
     el('demo-to-mayor').addEventListener('click', () => showScreen('mayor-portal', 'mayor'));
     el('buy-upgrade').addEventListener('change', updateMoneyPlan);
-    el('bank-amount').addEventListener('input', () => {
-      el('save-percent').value = ''; // typing dollars means "not a percent"
-      updateMoneyPlan();
+    el('bank-amount').addEventListener('input', updateMoneyPlan);
+    document.querySelectorAll('[data-pct]').forEach((button) => {
+      button.addEventListener('click', () => {
+        el('bank-amount').value = percentOf(bankMax(), Number(button.dataset.pct));
+        updateMoneyPlan();
+      });
     });
-    el('save-percent').addEventListener('input', updateMoneyPlan);
     el('money-done').addEventListener('click', confirmMoneyChoice);
     el('continue').addEventListener('click', continueWorkday);
     el('pay-emergency').addEventListener('click', payEmergency);
@@ -1366,6 +1359,7 @@
       ['summary', 'emergency', 'payout', 'results'].forEach((id) => { el(id).hidden = true; });
       el('feedback').textContent = '';
       el('job-area').replaceChildren();
+      el('job-area').classList.remove('job-full');
       showScreen('workday', 'resident');
       startRound();
     });
