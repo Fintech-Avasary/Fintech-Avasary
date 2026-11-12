@@ -179,11 +179,6 @@
     @media (prefers-reduced-motion: reduce) { .float-up { animation-name: fade-out; } }
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .restock-store { position: relative; }
-    /* Restocker takes the whole screen. The class is set in showHowTo and removed when the job ends. */
-    #job-area.job-full { position: fixed; inset: 0; z-index: 100; margin: 0; padding: 16px; overflow-y: auto; background: var(--card); }
-    #job-area.job-full .restock-layout { justify-content: center; }
-    #job-area.job-full .restock-store canvas { width: auto; max-width: 100%; height: 60vh; margin: 8px auto; }
-    #job-area.job-full .job-controls { max-width: 360px; margin-inline: auto; }
     .restock-store .float-up { position: absolute; left: 0; right: 0; top: 35%; margin: 0; text-align: center; font-size: 1.25rem; text-shadow: 2px 2px 0 #ffffff; }
 
     /* 4. Wardrobe beside the waiting room (below it on phones). */
@@ -969,7 +964,6 @@
       // §7.4: switching jobs costs travel time, which doesn't come out of work time.
       let secondsLeft = JOB_SWAP_SECONDS;
       el('countdown').textContent = `Traveling to your ${job.name} job: ${secondsLeft}...`;
-      el('job-area').classList.remove('job-full');
       el('job-area').innerHTML = '<canvas width="320" height="128" aria-hidden="true"></canvas>';
       playScene(el('job-area').firstChild, (context, frame) => drawTravel(context, frame, fromJob, job));
       const timer = setInterval(() => {
@@ -987,7 +981,6 @@
     // Instructions before every job; work time only starts counting on "Start work".
     function showHowTo(job, seconds) {
       const area = el('job-area');
-      area.classList.toggle('job-full', job === Restocker); // Restocker's store takes the whole screen
       area.innerHTML = `<h2>How to work as ${job.name}</h2>
         <div class="howto-layout"><ul></ul>
           <canvas width="160" height="120" role="img" aria-label="Animated example of the ${job.name} job"></canvas></div>
@@ -1014,7 +1007,6 @@
 
     // §7.2: every job pays its performance-based earnings into the same wallet.
     function finishJob({ earnings: rawEarnings, summary }) {
-      el('job-area').classList.remove('job-full'); // back to the normal page for the payout and money choice
       const earnings = roundCents(rawEarnings);
       // §13.2: part of every payday goes to the loan until it's paid off.
       const repaid = garnishFrom(earnings, game.loan);
@@ -1359,7 +1351,6 @@
       ['summary', 'emergency', 'payout', 'results'].forEach((id) => { el(id).hidden = true; });
       el('feedback').textContent = '';
       el('job-area').replaceChildren();
-      el('job-area').classList.remove('job-full');
       showScreen('workday', 'resident');
       startRound();
     });
