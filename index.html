@@ -488,7 +488,7 @@
     // §9: team-authored bank, tagged by topic so the Mayor can pick topics.
     // Each Workday draws questions at random with no repeats, and answer order is shuffled.
     const QUESTION_BANK = [
-      { topic: 'needs-wants', text: 'Which of these is a need?', answer: 'Rent', wrong: ['A concert ticket', 'A new phone case'] },
+      { topic: 'needs-wants', text: 'Which of these is a need?', answer: 'Groceries', wrong: ['A concert ticket', 'A new phone case'] },
       { topic: 'needs-wants', text: 'Which of these is a want?', answer: 'Designer sneakers', wrong: ['Groceries', 'The electric bill'] },
       { topic: 'needs-wants', text: 'You have $20 left after bills. Which choice puts needs first?', answer: 'Buying food for the week', wrong: ['A new video game', 'Movie tickets for friends'] },
       { topic: 'budgeting', text: 'What is a budget?', answer: 'A plan for how you will use your money', wrong: ['A type of bank account', 'A loan from a store'] },
@@ -496,21 +496,21 @@
       { topic: 'budgeting', text: 'Which expense usually costs about the same every month?', answer: 'Rent', wrong: ['Eating out', 'Birthday gifts'] },
       { topic: 'budgeting', text: 'What is the first step in making a budget?', answer: 'Find out how much money comes in', wrong: ['Buy what you want first', 'Open a credit card'] },
       { topic: 'budgeting', text: 'Tracking your spending helps you...', answer: 'See where your money goes', wrong: ['Earn interest automatically', 'Skip paying bills'] },
-      { topic: 'budgeting', text: 'Comparing prices before you buy helps you...', answer: 'Get the same thing for less', wrong: ['Spend more money', 'Never need a budget'] },
       { topic: 'saving', text: 'What is an emergency fund for?', answer: 'Covering surprise costs', wrong: ['Buying things on sale', 'Paying for vacations'] },
-      { topic: 'saving', text: 'What is the best time to start saving?', answer: 'Before you need the money', wrong: ['After an emergency', 'Only after buying what you want'] },
+      { topic: 'saving', text: 'What is the best time to start saving?', answer: 'Yesterday', wrong: ['After an emergency', 'Only after buying what you want'] },
       { topic: 'saving', text: 'You save $5 a week. How much do you have after 10 weeks?', answer: '$50', wrong: ['$15', '$500'] },
-      { topic: 'saving', text: 'Why save up for something instead of borrowing to buy it now?', answer: 'You avoid paying extra for the loan', wrong: ['Prices always go down', 'Stores only take saved money'] },
       { topic: 'banking', text: 'What does a savings account pay you?', answer: 'Interest', wrong: ['Rent', 'A bonus for every purchase'] },
-      { topic: 'banking', text: 'Why keep money in a bank instead of at home?', answer: 'It is safer from loss and theft', wrong: ['The bank pays for everything you buy', 'You can never take it out'] },
       { topic: 'banking', text: 'What does it mean to deposit money?', answer: 'Put money into an account', wrong: ['Take money out of an account', 'Borrow money from a friend'] },
       { topic: 'banking', text: 'What does it mean to withdraw money?', answer: 'Take money out of an account', wrong: ['Put money into an account', 'Pay back a loan'] },
-      { topic: 'credit', text: 'When you borrow money, you usually pay back...', answer: 'More than you borrowed', wrong: ['Less than you borrowed', 'Exactly what you borrowed, always'] },
       { topic: 'credit', text: 'What is interest on a loan?', answer: 'The extra cost of borrowing', wrong: ['A free gift from the bank', 'A kind of savings account'] },
       { topic: 'credit', text: 'You borrow $100 with a 10% fee. How much do you pay back in total?', answer: '$110', wrong: ['$100', '$90'] },
       { topic: 'credit', text: 'What does a credit score show?', answer: 'How reliably you pay back what you borrow', wrong: ['How much cash is in your wallet', 'How many things you own'] },
       { topic: 'earning', text: 'What is net pay?', answer: 'What you take home after taxes and deductions', wrong: ['Your pay before taxes', 'A yearly bonus'] },
-      { topic: 'earning', text: 'Which usually helps you earn more over time?', answer: 'Learning new skills', wrong: ['Spending your whole paycheck', 'Skipping work'] }
+      { topic: 'credit', text: 'What does a credit card do?', answer: 'Lets you borrow money to pay for things and pay it back later', wrong: ['Stores your savings and pays you interest', 'Gives you free money every month'] },
+      { topic: 'saving', text: 'What is the best thing to invest?', answer: 'Invest in yourself', wrong: ['Lottery tickets', 'Buying things you want now'] },
+      { topic: 'budgeting', text: 'What does living paycheck to paycheck mean?', answer: 'Spending all or most of your pay before the next payday', wrong: ['Saving half of every paycheck', 'Getting paid every two weeks'] },
+      { topic: 'credit', text: 'Macy is under 18 and cannot get a credit card on her own. What can she do to build credit?', answer: 'Authorized user on Parents\' card', wrong: ['Borrow from a friend and never pay it back', 'Open a store card in her own name'] },
+      { topic: 'budgeting', text: 'What is the best way to start a good money habit?', answer: 'Spend less than you earn and save part of it every payday', wrong: ['Spend first and save whatever is left', 'Check your bank balance once a year'] },
     ];
 
     const TOPIC_NAMES = { 'needs-wants': 'Needs and wants', budgeting: 'Budgeting', saving: 'Saving', banking: 'Banking', credit: 'Credit', earning: 'Earning' };
